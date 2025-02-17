@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "147141949584",
+    "project_id": "newproject-deebd",
+    "storage_bucket": "newproject-deebd.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:147141949584:android:125a76cb67cb85bed08015",
+        "android_client_info": {
+          "package_name": "com.example.new_project"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCllQHEMrJMDUwFWXjfnvcDPE1VAo9tAjU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
