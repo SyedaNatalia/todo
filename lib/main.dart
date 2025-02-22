@@ -4,7 +4,7 @@ import 'package:new_project/screens/home_screen.dart';
 import 'screens/login_screen.dart';
 
 void main() async {
- WidgetsFlutterBinding.ensureInitialized();
+  WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
   runApp(const MyApp());
 }
