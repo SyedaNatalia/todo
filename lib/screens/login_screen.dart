@@ -17,6 +17,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordController = TextEditingController();
   final AuthService _authService = AuthService();
   String _errorMessage = '';
+  bool _isLoading = false; // Add this line
 
   @override
   Widget build(BuildContext context) {
@@ -68,8 +69,17 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               const SizedBox(height: 20),
               ElevatedButton(
-                onPressed: _login,
-                child: const Text("Login"),
+                onPressed: _isLoading ? null : _login, // Disable button when loading
+                child: _isLoading
+                    ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    color: Colors.white,
+                    strokeWidth: 2,
+                  ),
+                )
+                    : const Text("Login"),
               ),
               TextButton(
                 onPressed: () {
@@ -90,6 +100,7 @@ class _LoginScreenState extends State<LoginScreen> {
   void _login() async {
     if (_formKey.currentState!.validate()) {
       setState(() {
+        _isLoading = true; // Start loading
         _errorMessage = '';
       });
 
@@ -115,12 +126,18 @@ class _LoginScreenState extends State<LoginScreen> {
           } else {
             _errorMessage = 'Login failed. Please try again.';
           }
+          _isLoading = false; // Stop loading
         });
       } catch (e) {
         setState(() {
           _errorMessage = 'An unexpected error occurred. Please try again.';
+          _isLoading = false; // Stop loading
         });
       }
+    } else {
+      setState(() {
+        _isLoading = false; // Stop loading if validation fails
+      });
     }
   }
 }

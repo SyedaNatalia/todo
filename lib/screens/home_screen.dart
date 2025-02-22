@@ -19,7 +19,8 @@ class _HomeScreenState extends State<HomeScreen> {
   final Color lightPeachColor = const Color(0xFFFFE5E0);
   final Color darkPeachColor = const Color(0xFFFF8576);
 
-  bool _isLoading = false;
+  bool _isLoading = false; // For task operations
+  bool _isRefreshing = false; // For refresh operations
 
   @override
   void dispose() {
@@ -70,18 +71,38 @@ class _HomeScreenState extends State<HomeScreen> {
             TextButton(
               onPressed: () async {
                 if (_taskController.text.isNotEmpty) {
-                  if (taskId != null) {
-                    await _firestore.collection('todos').doc(taskId).update({
-                      'task': _taskController.text.trim(),
-                    });
-                  } else {
-                    await _firestore.collection('todos').add({
-                      'task': _taskController.text.trim(),
-                      'isDone': false,
+                  setState(() {
+                    _isLoading = true; // Start loading
+                  });
+
+                  try {
+                    if (taskId != null) {
+                      await _firestore.collection('todos').doc(taskId).update({
+                        'task': _taskController.text.trim(),
+                      });
+                    } else {
+                      await _firestore.collection('todos').add({
+                        'task': _taskController.text.trim(),
+                        'isDone': false,
+                      });
+                    }
+                    _taskController.clear();
+                    Navigator.pop(context);
+                  } catch (e) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          'Failed to ${taskId == null ? 'add' : 'update'} task. Please try again.',
+                          style: GoogleFonts.poppins(),
+                        ),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  } finally {
+                    setState(() {
+                      _isLoading = false; // Stop loading
                     });
                   }
-                  _taskController.clear();
-                  Navigator.pop(context);
                 }
               },
               child: Text(
@@ -95,15 +116,15 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  void _refreshScreen() {
+  Future<void> _refreshScreen() async {
     setState(() {
-      _isLoading = true;
+      _isRefreshing = true;
     });
 
-    Future.delayed(const Duration(seconds: 3), () {
-      setState(() {
-        _isLoading = false;
-      });
+    await Future.delayed(const Duration(seconds: 2));
+
+    setState(() {
+      _isRefreshing = false;
     });
   }
 
@@ -111,7 +132,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: PreferredSize(
-        preferredSize: Size.fromHeight(_isLoading ? 150 : 50),
+        preferredSize: Size.fromHeight((_isLoading || _isRefreshing) ? 150 : 50),
         child: AppBar(
           backgroundColor: peachColor,
           shape: const RoundedRectangleBorder(
@@ -140,7 +161,7 @@ class _HomeScreenState extends State<HomeScreen> {
               icon: const Icon(Icons.logout_rounded, color: Colors.black),
             ),
           ],
-          bottom: _isLoading
+          bottom: (_isLoading || _isRefreshing)
               ? PreferredSize(
             preferredSize: const Size.fromHeight(100),
             child: Padding(
@@ -154,10 +175,12 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
       body: RefreshIndicator(
-        onRefresh: () async {
-          _refreshScreen();
-        },
-        child: StreamBuilder<QuerySnapshot>(
+        onRefresh: _refreshScreen,
+        child: _isRefreshing
+            ? const Center(
+          child: CircularProgressIndicator(),
+        )
+            : StreamBuilder<QuerySnapshot>(
           stream: _firestore.collection('todos').snapshots(),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
