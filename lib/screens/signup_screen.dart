@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/auth_service.dart';
 import 'home_screen.dart';
 import 'login_screen.dart';
@@ -16,8 +17,12 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final AuthService _authService = AuthService();
-  bool _isLoading = false; // Add this line
-  String _errorMessage = ''; // Add this line for error handling
+  bool _isLoading = false;
+  String _errorMessage = '';
+  String _selectedRole = 'Employee';
+  bool _isPasswordVisible = false; // Track password visibility
+
+  final List<String> _roles = ['Manager', 'Employee', 'Intern'];
 
   @override
   Widget build(BuildContext context) {
@@ -47,8 +52,20 @@ class _SignUpScreenState extends State<SignUpScreen> {
               ),
               TextFormField(
                 controller: _passwordController,
-                decoration: const InputDecoration(labelText: "Password"),
-                obscureText: true,
+                decoration: InputDecoration(
+                  labelText: "Password",
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _isPasswordVisible ? Icons.visibility : Icons.visibility_off,
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _isPasswordVisible = !_isPasswordVisible; // Toggle visibility
+                      });
+                    },
+                  ),
+                ),
+                obscureText: !_isPasswordVisible, // Toggle obscureText
                 validator: (value) {
                   if (value == null || value.isEmpty) {
                     return "Please enter your password";
@@ -59,7 +76,22 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   return null;
                 },
               ),
-              if (_errorMessage.isNotEmpty) // Display error message if any
+              DropdownButtonFormField<String>(
+                value: _selectedRole,
+                onChanged: (String? newValue) {
+                  setState(() {
+                    _selectedRole = newValue!;
+                  });
+                },
+                items: _roles.map<DropdownMenuItem<String>>((String value) {
+                  return DropdownMenuItem<String>(
+                    value: value,
+                    child: Text(value),
+                  );
+                }).toList(),
+                decoration: const InputDecoration(labelText: "Role"),
+              ),
+              if (_errorMessage.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 10.0),
                   child: Text(
@@ -69,7 +101,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 ),
               const SizedBox(height: 20),
               ElevatedButton(
-                onPressed: _isLoading ? null : _signUp, // Disable button when loading
+                onPressed: _isLoading ? null : _signUp,
                 child: _isLoading
                     ? const SizedBox(
                   width: 20,
@@ -100,8 +132,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
   void _signUp() async {
     if (_formKey.currentState!.validate()) {
       setState(() {
-        _isLoading = true; // Start loading
-        _errorMessage = ''; // Clear any previous error message
+        _isLoading = true;
+        _errorMessage = '';
       });
 
       try {
@@ -110,6 +142,12 @@ class _SignUpScreenState extends State<SignUpScreen> {
           _passwordController.text,
         );
         if (user != null) {
+
+          await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+            'email': _emailController.text,
+            'role': _selectedRole,
+          });
+
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(builder: (context) => const HomeScreen()),
@@ -126,17 +164,17 @@ class _SignUpScreenState extends State<SignUpScreen> {
           } else {
             _errorMessage = 'Signup failed. Please try again.';
           }
-          _isLoading = false; // Stop loading
+          _isLoading = false;
         });
       } catch (e) {
         setState(() {
           _errorMessage = 'An unexpected error occurred. Please try again.';
-          _isLoading = false; // Stop loading
+          _isLoading = false;
         });
       }
     } else {
       setState(() {
-        _isLoading = false; // Stop loading if validation fails
+        _isLoading = false;
       });
     }
   }

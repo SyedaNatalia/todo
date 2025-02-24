@@ -1,7 +1,9 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseFunctions _functions = FirebaseFunctions.instance;
 
   Future<User?> signIn(String email, String password) async {
     try {
@@ -31,5 +33,16 @@ class AuthService {
 
   Future<void> signOut() async {
     await _auth.signOut();
+  }
+
+  Future<List<Map<String, dynamic>>> fetchAllUsers() async {
+    try {
+      HttpsCallable callable = _functions.httpsCallable('getAllUsers');
+      final response = await callable();
+      return List<Map<String, dynamic>>.from(response.data['users']);
+    } catch (e) {
+      print("Error fetching users: $e");
+      return [];
+    }
   }
 }
