@@ -1,6 +1,8 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:new_project/screens/profile_screen.dart';
 import 'package:new_project/screens/widgets/custom_textfield.dart';
 import '../services/auth_service.dart';
 import 'login_screen.dart';
@@ -23,98 +25,230 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isLoading = false;
   bool _isRefreshing = false;
 
+  String? _selectedUser;
+
   @override
   void dispose() {
     _taskController.dispose();
     super.dispose();
   }
 
-  Future<void> _showTaskDialog({String? taskId, String? currentTask}) async {
+  Future<void> showTaskDialog({
+    String? taskId,
+    String? currentTask,
+    String? currentAssignee,
+    String? currentAssignedBy,
+  }) async {
     _taskController.text = currentTask ?? '';
+    String? selectedAssignee = currentAssignee;
+    String? selectedAssignedBy = currentAssignedBy ?? FirebaseAuth.instance.currentUser?.email;
+    List<String> userEmails = [];
+    bool isLoadingUsers = true;
+
+    Future<void> fetchUsers() async {
+      try {
+        final QuerySnapshot userSnapshot = await _firestore.collection('users').get();
+        userEmails = userSnapshot.docs
+            .map((doc) => doc['email'] as String)
+            .toList();
+
+        if (selectedAssignee == null && userEmails.isNotEmpty) {
+          selectedAssignee = userEmails[0];
+        }
+        if (selectedAssignedBy == null && userEmails.isNotEmpty) {
+          selectedAssignedBy = userEmails[0];
+        }
+
+        isLoadingUsers = false;
+      } catch (e) {
+        print('Error fetching users: $e');
+        isLoadingUsers = false;
+      }
+    }
 
     await showDialog(
       context: context,
       builder: (context) {
-        return AlertDialog(
-          backgroundColor: lightPeachColor,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          title: Text(
-            taskId == null ? 'Add Task' : 'Update Task',
-            style: GoogleFonts.poppins(
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          content: TextField(
-            controller: _taskController,
-            style: GoogleFonts.nunito(),
-            decoration: InputDecoration(
-              hintText: 'Enter task title',
-              hintStyle: GoogleFonts.nunito(color: Colors.black54),
-              focusedBorder: UnderlineInputBorder(
-                borderSide: BorderSide(color: peachColor),
-              ),
-            ),
-            autofocus: true,
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                _taskController.clear();
-                Navigator.pop(context);
-              },
-              child: Text(
-                'Cancel',
-                style: GoogleFonts.poppins(color: Colors.black),
-              ),
-            ),
-            TextButton(
-              onPressed: () async {
-                if (_taskController.text.isNotEmpty) {
-                  setState(() {
-                    _isLoading = true;
-                  });
+        return StatefulBuilder(
+          builder: (context, setState) {
 
-                  try {
-                    if (taskId != null) {
-                      await _firestore.collection('todos').doc(taskId).update({
-                        'task': _taskController.text.trim(),
-                        'updatedAt': Timestamp.now(),
+            if (isLoadingUsers) {
+              fetchUsers().then((_) {
+                setState(() {});
+              });
+            }
+
+            return AlertDialog(
+              backgroundColor: lightPeachColor,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              title: Text(
+                taskId == null ? 'Add Task' : 'Update Task',
+                style: GoogleFonts.poppins(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: _taskController,
+                    style: GoogleFonts.nunito(),
+                    decoration: InputDecoration(
+                      hintText: 'Enter task title',
+                      hintStyle: GoogleFonts.nunito(color: Colors.black54),
+                      focusedBorder: UnderlineInputBorder(
+                        borderSide: BorderSide(color: peachColor),
+                      ),
+                    ),
+                    autofocus: true,
+                  ),
+                  SizedBox(height: 16),
+                  isLoadingUsers
+                      ? CircularProgressIndicator(color: peachColor)
+                      : DropdownButtonFormField<String>(
+                    value: selectedAssignee,
+                    decoration: InputDecoration(
+                      labelText: 'Assigned to',
+                      labelStyle: GoogleFonts.nunito(),
+                      border: UnderlineInputBorder(),
+                      focusedBorder: UnderlineInputBorder(
+                        borderSide: BorderSide(color: peachColor),
+                      ),
+                    ),
+                    hint: Text('Select user', style: GoogleFonts.nunito()),
+                    style: GoogleFonts.nunito(),
+                    dropdownColor: peachColor,
+                    items: userEmails.map((String email) {
+                      return DropdownMenuItem<String>(
+                        value: email,
+                        child: Text(
+                          email,
+                          style: GoogleFonts.nunito(),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: (String? newValue) {
+                      setState(() {
+                        selectedAssignee = newValue;
                       });
-                    } else {
-                      await _firestore.collection('todos').add({
-                        'task': _taskController.text.trim(),
-                        'isDone': false,
-                        'createdAt': Timestamp.now(),
-                        'updatedAt': Timestamp.now(),
+                    },
+                    isExpanded: true,
+                  ),
+                  SizedBox(height: 16),
+                  isLoadingUsers
+                      ? CircularProgressIndicator(color: peachColor)
+                      : DropdownButtonFormField<String>(
+                    value: selectedAssignedBy,
+                    decoration: InputDecoration(
+                      labelText: 'Assigned by',
+                      labelStyle: GoogleFonts.nunito(),
+                      border: UnderlineInputBorder(),
+                      focusedBorder: UnderlineInputBorder(
+                        borderSide: BorderSide(color: peachColor),
+                      ),
+                    ),
+                    hint: Text('Select user', style: GoogleFonts.nunito()),
+                    style: GoogleFonts.nunito(),
+                    dropdownColor: peachColor,
+                    items: userEmails.map((String email) {
+                      return DropdownMenuItem<String>(
+                        value: email,
+                        child: Text(
+                          email,
+                          style: GoogleFonts.nunito(),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: (String? newValue) {
+                      setState(() {
+                        selectedAssignedBy = newValue;
                       });
-                    }
+                    },
+                    isExpanded: true,
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
                     _taskController.clear();
                     Navigator.pop(context);
-                  } catch (e) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          'Failed to ${taskId == null ? 'add' : 'update'} task. Please try again.',
-                          style: GoogleFonts.poppins(),
+                  },
+                  child: Text(
+                    'Cancel',
+                    style: GoogleFonts.poppins(color: Colors.black),
+                  ),
+                ),
+                TextButton(
+                  onPressed: () async {
+                    if (_taskController.text.isNotEmpty &&
+                        selectedAssignee != null &&
+                        selectedAssignedBy != null) {
+                      setState(() {
+                        _isLoading = true;
+                      });
+                      try {
+                        final pairString = '$selectedAssignee' '+' '$selectedAssignedBy';
+                        if (taskId != null) {
+                          await _firestore.collection('todos').doc(taskId).update({
+                            'task': _taskController.text.trim(),
+                            'assignedTo': selectedAssignee,
+                            'assignedBy': selectedAssignedBy,
+                            'pair': pairString,
+                            'updatedAt': Timestamp.now(),
+                          });
+                        } else {
+                          await _firestore.collection('todos').add({
+                            'task': _taskController.text.trim(),
+                            'assignedTo': selectedAssignee,
+                            'assignedBy': selectedAssignedBy,
+                            'pair': pairString,
+                            'isDone': false,
+                            'createdAt': Timestamp.now(),
+                            'updatedAt': Timestamp.now(),
+                          });
+                        }
+                        _taskController.clear();
+                        Navigator.pop(context);
+                      } catch (e) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              'Failed to ${taskId == null ? 'add' : 'update'} task. Please try again.',
+                              style: GoogleFonts.poppins(),
+                            ),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      } finally {
+                        setState(() {
+                          _isLoading = false;
+                        });
+                      }
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            'Please fill all required fields',
+                            style: GoogleFonts.poppins(),
+                          ),
+                          backgroundColor: Colors.orange,
                         ),
-                        backgroundColor: Colors.red,
-                      ),
-                    );
-                  } finally {
-                    setState(() {
-                      _isLoading = false;
-                    });
-                  }
-                }
-              },
-              child: Text(
-                taskId == null ? 'Add' : 'Update',
-                style: GoogleFonts.poppins(color: Colors.black),
-              ),
-            ),
-          ],
+                      );
+                    }
+                  },
+                  child: Text(
+                    taskId == null ? 'Add' : 'Update',
+                    style: GoogleFonts.poppins(color: Colors.black),
+                  ),
+                ),
+              ],
+            );
+          },
         );
       },
     );
@@ -132,7 +266,6 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  // Helper function to format Timestamp
   String _formatTimestamp(Timestamp timestamp) {
     final dateTime = timestamp.toDate();
     final date = "${dateTime.month}/${dateTime.day}/${dateTime.year}";
@@ -181,6 +314,50 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     TextSpan(
                       text: '${taskData['task']}',
+                      style: GoogleFonts.nunito(
+                        fontSize: 16,
+                        color: Colors.black,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+              RichText(
+                text: TextSpan(
+                  children: [
+                    TextSpan(
+                      text: 'Assigned To: ',
+                      style: GoogleFonts.nunito(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black,
+                      ),
+                    ),
+                    TextSpan(
+                      text: '${taskData['assignedTo'] ?? 'Not assigned'}',
+                      style: GoogleFonts.nunito(
+                        fontSize: 16,
+                        color: Colors.black,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+              RichText(
+                text: TextSpan(
+                  children: [
+                    TextSpan(
+                      text: 'Assigned By: ',
+                      style: GoogleFonts.nunito(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black,
+                      ),
+                    ),
+                    TextSpan(
+                      text: '${taskData['assignedBy'] ?? 'Not assigned'}',
                       style: GoogleFonts.nunito(
                         fontSize: 16,
                         color: Colors.black,
@@ -277,6 +454,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  //@override
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -299,6 +477,16 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           centerTitle: true,
           actions: [
+            IconButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const ProfileScreen()),
+                );
+              },
+              icon: const Icon(Icons.person, color: Colors.black),
+            ),
+            // Logout Icon
             IconButton(
               onPressed: () async {
                 await AuthService().signOut();
@@ -376,6 +564,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         final taskData = task.data() as Map<String, dynamic>;
                         final taskTitle = taskData['task'];
                         final isDone = taskData['isDone'];
+                        final assignedTo = taskData['assignedTo'];
 
                         return Dismissible(
                           key: Key(taskId),
@@ -412,12 +601,19 @@ class _HomeScreenState extends State<HomeScreen> {
                                   color: Colors.black87,
                                 ),
                               ),
+                              subtitle: Text(
+                                'Assigned to: $assignedTo',
+                                style: GoogleFonts.nunito(
+                                  fontSize: 14,
+                                  color: Colors.black54,
+                                ),
+                              ),
                               trailing: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   IconButton(
                                     icon: const Icon(Icons.edit, color: Colors.black54),
-                                    onPressed: () => _showTaskDialog(
+                                    onPressed: () => showTaskDialog(
                                       taskId: taskId,
                                       currentTask: taskTitle,
                                     ),
@@ -476,7 +672,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => _showTaskDialog(),
+        onPressed: () => showTaskDialog(),
         backgroundColor: peachColor,
         child: const Icon(Icons.add, color: Colors.black),
       ),
