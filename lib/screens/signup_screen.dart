@@ -16,11 +16,13 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _firstNameController = TextEditingController();
+  final _lastNameController = TextEditingController();
   final AuthService _authService = AuthService();
   bool _isLoading = false;
   String _errorMessage = '';
   String _selectedRole = 'Employee';
-  bool _isPasswordVisible = false; // Track password visibility
+  bool _isPasswordVisible = false;
 
   final List<String> _roles = ['Manager', 'Employee', 'Intern'];
 
@@ -37,6 +39,29 @@ class _SignUpScreenState extends State<SignUpScreen> {
           key: _formKey,
           child: Column(
             children: [
+              // First Name Field
+              TextFormField(
+                controller: _firstNameController,
+                decoration: const InputDecoration(labelText: "First Name"),
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return "Please enter your first name";
+                  }
+                  return null;
+                },
+              ),
+              // Last Name Field
+              TextFormField(
+                controller: _lastNameController,
+                decoration: const InputDecoration(labelText: "Last Name"),
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return "Please enter your last name";
+                  }
+                  return null;
+                },
+              ),
+              // Email Field
               TextFormField(
                 controller: _emailController,
                 decoration: const InputDecoration(labelText: "Email"),
@@ -50,6 +75,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   return null;
                 },
               ),
+              // Password Field
               TextFormField(
                 controller: _passwordController,
                 decoration: InputDecoration(
@@ -65,7 +91,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     },
                   ),
                 ),
-                obscureText: !_isPasswordVisible, // Toggle obscureText
+                obscureText: !_isPasswordVisible,
                 validator: (value) {
                   if (value == null || value.isEmpty) {
                     return "Please enter your password";
@@ -76,6 +102,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   return null;
                 },
               ),
+              // Role Dropdown
               DropdownButtonFormField<String>(
                 value: _selectedRole,
                 onChanged: (String? newValue) {
@@ -91,6 +118,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 }).toList(),
                 decoration: const InputDecoration(labelText: "Role"),
               ),
+              // Error Message
               if (_errorMessage.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 10.0),
@@ -100,6 +128,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   ),
                 ),
               const SizedBox(height: 20),
+              // Sign Up Button
               ElevatedButton(
                 onPressed: _isLoading ? null : _signUp,
                 child: _isLoading
@@ -113,6 +142,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 )
                     : const Text("Sign Up"),
               ),
+              // Login Button
               TextButton(
                 onPressed: () {
                   Navigator.push(
@@ -142,8 +172,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
           _passwordController.text,
         );
         if (user != null) {
-
+          // Save user details to Firestore
           await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+            'firstName': _firstNameController.text,
+            'lastName': _lastNameController.text,
             'email': _emailController.text,
             'role': _selectedRole,
           });

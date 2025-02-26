@@ -14,6 +14,15 @@ class ProfileScreen extends StatelessWidget {
       return 'Not Available';
     }
   }
+  Future<String?> _getUserFirstName(String uid) async {
+    try {
+      DocumentSnapshot userDoc =
+      await FirebaseFirestore.instance.collection('users').doc(uid).get();
+      return userDoc['firstName'] ?? 'Not Available';
+    } catch (e) {
+      return 'Not Available';
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -49,6 +58,20 @@ class ProfileScreen extends StatelessWidget {
                 }
               },
             ),
+            const SizedBox(height: 10),
+            FutureBuilder<String?>(
+              future: _getUserFirstName(user?.uid ?? ''),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const CircularProgressIndicator();
+                } else if (snapshot.hasError) {
+                  return _buildProfileInfo('First Name', 'Error fetching role');
+                } else {
+                  return _buildProfileInfo('First Name', snapshot.data ?? 'Not Available');
+                }
+              },
+            ),
+
           ],
         ),
       ),

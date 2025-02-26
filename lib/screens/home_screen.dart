@@ -470,7 +470,7 @@ class _HomeScreenState extends State<HomeScreen> {
           title: Text(
             "Todo List",
             style: GoogleFonts.poppins(
-              fontSize: 25,
+              fontSize: 15,
               fontWeight: FontWeight.bold,
               color: Colors.black,
             ),
