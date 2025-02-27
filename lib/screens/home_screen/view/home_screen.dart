@@ -2,10 +2,11 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
 import 'package:new_project/screens/profile_screen.dart';
 import 'package:new_project/screens/widgets/custom_textfield.dart';
-import '../services/auth_service.dart';
-import 'login_screen.dart';
+import '../../../services/auth_service.dart';
+import '../../login_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -26,6 +27,7 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isRefreshing = false;
 
   String? _selectedUser;
+  DateTime? _selectedDueDate; // Added for due date
 
   @override
   void dispose() {
@@ -33,15 +35,50 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
+  // Method to pick a date
+  Future<void> _selectDate(BuildContext context, StateSetter setDialogState) async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedDueDate ?? DateTime.now(),
+      firstDate: DateTime.now(),
+      lastDate: DateTime(2100),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: ColorScheme.light(
+              primary: peachColor,
+              onPrimary: Colors.black,
+              onSurface: Colors.black,
+            ),
+            textButtonTheme: TextButtonThemeData(
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.black,
+              ),
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (picked != null && picked != _selectedDueDate) {
+      setDialogState(() {
+        _selectedDueDate = picked;
+      });
+    }
+  }
+
   Future<void> showTaskDialog({
     String? taskId,
     String? currentTask,
     String? currentAssignee,
     String? currentAssignedBy,
+    DateTime? currentDueDate, // Added parameter for due date
   }) async {
     _taskController.text = currentTask ?? '';
     String? selectedAssignee = currentAssignee;
     String? selectedAssignedBy = currentAssignedBy ?? FirebaseAuth.instance.currentUser?.email;
+    _selectedDueDate = currentDueDate; // Initialize with current due date if editing
     List<String> userEmails = [];
     bool isLoadingUsers = true;
 
@@ -89,93 +126,118 @@ class _HomeScreenState extends State<HomeScreen> {
                   fontWeight: FontWeight.w600,
                 ),
               ),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: _taskController,
-                    style: GoogleFonts.nunito(),
-                    decoration: InputDecoration(
-                      hintText: 'Enter task title',
-                      hintStyle: GoogleFonts.nunito(color: Colors.black54),
-                      focusedBorder: UnderlineInputBorder(
-                        borderSide: BorderSide(color: peachColor),
-                      ),
-                    ),
-                    autofocus: true,
-                  ),
-                  SizedBox(height: 16),
-                  isLoadingUsers
-                      ? CircularProgressIndicator(color: peachColor)
-                      : DropdownButtonFormField<String>(
-                    value: selectedAssignee,
-                    decoration: InputDecoration(
-                      labelText: 'Assigned to',
-                      labelStyle: GoogleFonts.nunito(),
-                      border: UnderlineInputBorder(),
-                      focusedBorder: UnderlineInputBorder(
-                        borderSide: BorderSide(color: peachColor),
-                      ),
-                    ),
-                    hint: Text('Select user', style: GoogleFonts.nunito()),
-                    style: GoogleFonts.nunito(),
-                    dropdownColor: peachColor,
-                    items: userEmails.map((String email) {
-                      return DropdownMenuItem<String>(
-                        value: email,
-                        child: Text(
-                          email,
-                          style: GoogleFonts.nunito(),
-                          overflow: TextOverflow.ellipsis,
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: _taskController,
+                      style: GoogleFonts.nunito(),
+                      decoration: InputDecoration(
+                        hintText: 'Enter task title',
+                        hintStyle: GoogleFonts.nunito(color: Colors.black54),
+                        focusedBorder: UnderlineInputBorder(
+                          borderSide: BorderSide(color: peachColor),
                         ),
-                      );
-                    }).toList(),
-                    onChanged: (String? newValue) {
-                      setState(() {
-                        selectedAssignee = newValue;
-                      });
-                    },
-                    isExpanded: true,
-                  ),
-                  SizedBox(height: 16),
-                  isLoadingUsers
-                      ? CircularProgressIndicator(color: peachColor)
-                      : DropdownButtonFormField<String>(
-                    value: selectedAssignedBy,
-                    decoration: InputDecoration(
-                      labelText: 'Assigned by',
-                      labelStyle: GoogleFonts.nunito(),
-                      border: UnderlineInputBorder(),
-                      focusedBorder: UnderlineInputBorder(
-                        borderSide: BorderSide(color: peachColor),
+                      ),
+                      autofocus: true,
+                    ),
+                    SizedBox(height: 16),
+                    isLoadingUsers
+                        ? CircularProgressIndicator(color: peachColor)
+                        : DropdownButtonFormField<String>(
+                      value: selectedAssignee,
+                      decoration: InputDecoration(
+                        labelText: 'Assigned to',
+                        labelStyle: GoogleFonts.nunito(),
+                        border: UnderlineInputBorder(),
+                        focusedBorder: UnderlineInputBorder(
+                          borderSide: BorderSide(color: peachColor),
+                        ),
+                      ),
+                      hint: Text('Select user', style: GoogleFonts.nunito()),
+                      style: GoogleFonts.nunito(),
+                      dropdownColor: peachColor,
+                      items: userEmails.map((String email) {
+                        return DropdownMenuItem<String>(
+                          value: email,
+                          child: Text(
+                            email,
+                            style: GoogleFonts.nunito(),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        );
+                      }).toList(),
+                      onChanged: (String? newValue) {
+                        setState(() {
+                          selectedAssignee = newValue;
+                        });
+                      },
+                      isExpanded: true,
+                    ),
+                    SizedBox(height: 16),
+                    isLoadingUsers
+                        ? CircularProgressIndicator(color: peachColor)
+                        : DropdownButtonFormField<String>(
+                      value: selectedAssignedBy,
+                      decoration: InputDecoration(
+                        labelText: 'Assigned by',
+                        labelStyle: GoogleFonts.nunito(),
+                        border: UnderlineInputBorder(),
+                        focusedBorder: UnderlineInputBorder(
+                          borderSide: BorderSide(color: peachColor),
+                        ),
+                      ),
+                      hint: Text('Select user', style: GoogleFonts.nunito()),
+                      style: GoogleFonts.nunito(),
+                      dropdownColor: peachColor,
+                      items: userEmails.map((String email) {
+                        return DropdownMenuItem<String>(
+                          value: email,
+                          child: Text(
+                            email,
+                            style: GoogleFonts.nunito(),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        );
+                      }).toList(),
+                      onChanged: (String? newValue) {
+                        setState(() {
+                          selectedAssignedBy = newValue;
+                        });
+                      },
+                      isExpanded: true,
+                    ),
+                    SizedBox(height: 16),
+                    // Due date picker
+                    InkWell(
+                      onTap: () => _selectDate(context, setState),
+                      child: InputDecorator(
+                        decoration: InputDecoration(
+                          labelText: 'Due Date',
+                          labelStyle: GoogleFonts.nunito(),
+                          border: UnderlineInputBorder(),
+                          focusedBorder: UnderlineInputBorder(
+                            borderSide: BorderSide(color: peachColor),
+                          ),
+                          suffixIcon: Icon(Icons.calendar_today, color: Colors.black54),
+                        ),
+                        child: Text(
+                          _selectedDueDate == null
+                              ? 'Select a due date'
+                              : DateFormat('MMM d, yyyy').format(_selectedDueDate!),
+                          style: GoogleFonts.nunito(),
+                        ),
                       ),
                     ),
-                    hint: Text('Select user', style: GoogleFonts.nunito()),
-                    style: GoogleFonts.nunito(),
-                    dropdownColor: peachColor,
-                    items: userEmails.map((String email) {
-                      return DropdownMenuItem<String>(
-                        value: email,
-                        child: Text(
-                          email,
-                          style: GoogleFonts.nunito(),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      );
-                    }).toList(),
-                    onChanged: (String? newValue) {
-                      setState(() {
-                        selectedAssignedBy = newValue;
-                      });
-                    },
-                    isExpanded: true,
-                  ),
-                ],
+                  ],
+                ),
               ),
               actions: [
                 TextButton(
                   onPressed: () {
                     _taskController.clear();
+                    _selectedDueDate = null;
                     Navigator.pop(context);
                   },
                   child: Text(
@@ -193,26 +255,28 @@ class _HomeScreenState extends State<HomeScreen> {
                       });
                       try {
                         final pairString = '$selectedAssignee' '+' '$selectedAssignedBy';
+                        final Map<String, dynamic> taskData = {
+                          'task': _taskController.text.trim(),
+                          'assignedTo': selectedAssignee,
+                          'assignedBy': selectedAssignedBy,
+                          'pair': pairString,
+                          'updatedAt': Timestamp.now(),
+                        };
+
+                        // Add due date to task data if selected
+                        if (_selectedDueDate != null) {
+                          taskData['dueDate'] = Timestamp.fromDate(_selectedDueDate!);
+                        }
+
                         if (taskId != null) {
-                          await _firestore.collection('todos').doc(taskId).update({
-                            'task': _taskController.text.trim(),
-                            'assignedTo': selectedAssignee,
-                            'assignedBy': selectedAssignedBy,
-                            'pair': pairString,
-                            'updatedAt': Timestamp.now(),
-                          });
+                          await _firestore.collection('todos').doc(taskId).update(taskData);
                         } else {
-                          await _firestore.collection('todos').add({
-                            'task': _taskController.text.trim(),
-                            'assignedTo': selectedAssignee,
-                            'assignedBy': selectedAssignedBy,
-                            'pair': pairString,
-                            'isDone': false,
-                            'createdAt': Timestamp.now(),
-                            'updatedAt': Timestamp.now(),
-                          });
+                          taskData['isDone'] = false;
+                          taskData['createdAt'] = Timestamp.now();
+                          await _firestore.collection('todos').add(taskData);
                         }
                         _taskController.clear();
+                        _selectedDueDate = null;
                         Navigator.pop(context);
                       } catch (e) {
                         ScaffoldMessenger.of(context).showSnackBar(
@@ -273,9 +337,25 @@ class _HomeScreenState extends State<HomeScreen> {
     return 'Date: $date\nTime: $time';
   }
 
+  // Format due date
+  String _formatDueDate(Timestamp timestamp) {
+    final dateTime = timestamp.toDate();
+    return DateFormat('MMMM d, yyyy').format(dateTime);
+  }
+
+  // Check if task is overdue
+  bool _isOverdue(Timestamp? dueDate) {
+    if (dueDate == null) return false;
+    final now = DateTime.now();
+    final due = dueDate.toDate();
+    return now.isAfter(due) && now.day != due.day;
+  }
+
   void _showTaskDetailsBottomSheet(Map<String, dynamic> taskData) {
     final createdAt = taskData['createdAt'] as Timestamp?;
     final updatedAt = taskData['updatedAt'] as Timestamp?;
+    final dueDate = taskData['dueDate'] as Timestamp?;
+    final isOverdue = dueDate != null ? _isOverdue(dueDate) : false;
 
     showModalBottomSheet(
       context: context,
@@ -367,6 +447,41 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
               const SizedBox(height: 8),
+              // Due date display
+              if (dueDate != null) ...[
+                RichText(
+                  text: TextSpan(
+                    children: [
+                      TextSpan(
+                        text: 'Due Date: ',
+                        style: GoogleFonts.nunito(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black,
+                        ),
+                      ),
+                      TextSpan(
+                        text: _formatDueDate(dueDate),
+                        style: GoogleFonts.nunito(
+                          fontSize: 16,
+                          color: isOverdue ? Colors.red : Colors.black,
+                          fontWeight: isOverdue ? FontWeight.bold : FontWeight.normal,
+                        ),
+                      ),
+                      if (isOverdue)
+                        TextSpan(
+                          text: ' (Overdue)',
+                          style: GoogleFonts.nunito(
+                            fontSize: 16,
+                            color: Colors.red,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 8),
+              ],
               RichText(
                 text: TextSpan(
                   children: [
@@ -454,7 +569,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  //@override
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -565,6 +679,8 @@ class _HomeScreenState extends State<HomeScreen> {
                         final taskTitle = taskData['task'];
                         final isDone = taskData['isDone'];
                         final assignedTo = taskData['assignedTo'];
+                        final dueDate = taskData['dueDate'] as Timestamp?;
+                        final isOverdue = dueDate != null ? _isOverdue(dueDate) : false;
 
                         return Dismissible(
                           key: Key(taskId),
@@ -601,12 +717,26 @@ class _HomeScreenState extends State<HomeScreen> {
                                   color: Colors.black87,
                                 ),
                               ),
-                              subtitle: Text(
-                                'Assigned to: $assignedTo',
-                                style: GoogleFonts.nunito(
-                                  fontSize: 14,
-                                  color: Colors.black54,
-                                ),
+                              subtitle: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Assigned to: $assignedTo',
+                                    style: GoogleFonts.nunito(
+                                      fontSize: 14,
+                                      color: Colors.black54,
+                                    ),
+                                  ),
+                                  if (dueDate != null)
+                                    Text(
+                                      'Due: ${DateFormat('MMM d').format(dueDate.toDate())}',
+                                      style: GoogleFonts.nunito(
+                                        fontSize: 14,
+                                        color: isOverdue ? Colors.red : Colors.black54,
+                                        fontWeight: isOverdue ? FontWeight.bold : FontWeight.normal,
+                                      ),
+                                    ),
+                                ],
                               ),
                               trailing: Row(
                                 mainAxisSize: MainAxisSize.min,
@@ -616,6 +746,9 @@ class _HomeScreenState extends State<HomeScreen> {
                                     onPressed: () => showTaskDialog(
                                       taskId: taskId,
                                       currentTask: taskTitle,
+                                      currentAssignee: taskData['assignedTo'],
+                                      currentAssignedBy: taskData['assignedBy'],
+                                      currentDueDate: dueDate?.toDate(),
                                     ),
                                   ),
                                   Checkbox(

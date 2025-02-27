@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:new_project/screens/home_screen.dart';
+import 'package:new_project/screens/home_screen/view/home_screen.dart';
 import 'screens/login_screen.dart';
 
 void main() async {
