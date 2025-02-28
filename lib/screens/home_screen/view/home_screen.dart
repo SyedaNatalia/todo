@@ -3,10 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
-import 'package:new_project/screens/profile_screen.dart';
-import 'package:new_project/screens/widgets/custom_textfield.dart';
 import '../../../services/auth_service.dart';
+import '../../completed_tak/view/completed_task.dart';
 import '../../login_screen.dart';
+import '../../pending_task/view/pending_task.dart';
+import '../../profile_screen.dart';
+import '../../uncomplete_task/view/uncomplete_task.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -27,7 +29,7 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isRefreshing = false;
 
   String? _selectedUser;
-  DateTime? _selectedDueDate; // Added for due date
+  DateTime? _selectedDueDate;
 
   @override
   void dispose() {
@@ -35,7 +37,6 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
-  // Method to pick a date
   Future<void> _selectDate(BuildContext context, StateSetter setDialogState) async {
     final DateTime? picked = await showDatePicker(
       context: context,
@@ -68,17 +69,48 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  Future<void> deleteTask(String taskId) async {
+    try {
+      await _firestore.collection('todos').doc(taskId).delete();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Task deleted successfully',
+            style: GoogleFonts.poppins(),
+          ),
+          backgroundColor: Colors.green,
+          action: SnackBarAction(
+            label: 'Undo',
+            textColor: Colors.white,
+            onPressed: () {
+              // Implement undo functionality if needed
+            },
+          ),
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Failed to delete task. Please try again.',
+            style: GoogleFonts.poppins(),
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
   Future<void> showTaskDialog({
     String? taskId,
     String? currentTask,
     String? currentAssignee,
-    String? currentAssignedBy,
-    DateTime? currentDueDate, // Added parameter for due date
+    DateTime? currentDueDate,
   }) async {
     _taskController.text = currentTask ?? '';
     String? selectedAssignee = currentAssignee;
-    String? selectedAssignedBy = currentAssignedBy ?? FirebaseAuth.instance.currentUser?.email;
-    _selectedDueDate = currentDueDate; // Initialize with current due date if editing
+    String currentUserEmail = FirebaseAuth.instance.currentUser?.email ?? '';
+    _selectedDueDate = currentDueDate;
     List<String> userEmails = [];
     bool isLoadingUsers = true;
 
@@ -91,9 +123,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
         if (selectedAssignee == null && userEmails.isNotEmpty) {
           selectedAssignee = userEmails[0];
-        }
-        if (selectedAssignedBy == null && userEmails.isNotEmpty) {
-          selectedAssignedBy = userEmails[0];
         }
 
         isLoadingUsers = false;
@@ -176,39 +205,6 @@ class _HomeScreenState extends State<HomeScreen> {
                       isExpanded: true,
                     ),
                     SizedBox(height: 16),
-                    isLoadingUsers
-                        ? CircularProgressIndicator(color: peachColor)
-                        : DropdownButtonFormField<String>(
-                      value: selectedAssignedBy,
-                      decoration: InputDecoration(
-                        labelText: 'Assigned by',
-                        labelStyle: GoogleFonts.nunito(),
-                        border: UnderlineInputBorder(),
-                        focusedBorder: UnderlineInputBorder(
-                          borderSide: BorderSide(color: peachColor),
-                        ),
-                      ),
-                      hint: Text('Select user', style: GoogleFonts.nunito()),
-                      style: GoogleFonts.nunito(),
-                      dropdownColor: peachColor,
-                      items: userEmails.map((String email) {
-                        return DropdownMenuItem<String>(
-                          value: email,
-                          child: Text(
-                            email,
-                            style: GoogleFonts.nunito(),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        );
-                      }).toList(),
-                      onChanged: (String? newValue) {
-                        setState(() {
-                          selectedAssignedBy = newValue;
-                        });
-                      },
-                      isExpanded: true,
-                    ),
-                    SizedBox(height: 16),
                     // Due date picker
                     InkWell(
                       onTap: () => _selectDate(context, setState),
@@ -248,22 +244,21 @@ class _HomeScreenState extends State<HomeScreen> {
                 TextButton(
                   onPressed: () async {
                     if (_taskController.text.isNotEmpty &&
-                        selectedAssignee != null &&
-                        selectedAssignedBy != null) {
+                        selectedAssignee != null) {
                       setState(() {
                         _isLoading = true;
                       });
                       try {
-                        final pairString = '$selectedAssignee' '+' '$selectedAssignedBy';
+                        final pairString = '$selectedAssignee' '+' '$currentUserEmail';
                         final Map<String, dynamic> taskData = {
                           'task': _taskController.text.trim(),
                           'assignedTo': selectedAssignee,
-                          'assignedBy': selectedAssignedBy,
+                          'assignedBy': currentUserEmail,
                           'pair': pairString,
                           'updatedAt': Timestamp.now(),
+                          'status': 'pending',
                         };
 
-                        // Add due date to task data if selected
                         if (_selectedDueDate != null) {
                           taskData['dueDate'] = Timestamp.fromDate(_selectedDueDate!);
                         }
@@ -318,254 +313,74 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Future<void> _refreshScreen() async {
-    setState(() {
-      _isRefreshing = true;
-    });
+  Widget buildTaskItem(BuildContext context, DocumentSnapshot document) {
+    final Map<String, dynamic> data = document.data() as Map<String, dynamic>;
+    final String taskId = document.id;
+    final String taskTitle = data['task'] ?? 'Untitled Task';
+    final bool isDone = data['isDone'] ?? false;
 
-    await Future.delayed(const Duration(seconds: 2));
-
-    setState(() {
-      _isRefreshing = false;
-    });
-  }
-
-  String _formatTimestamp(Timestamp timestamp) {
-    final dateTime = timestamp.toDate();
-    final date = "${dateTime.month}/${dateTime.day}/${dateTime.year}";
-    final time = "${dateTime.hour % 12 == 0 ? 12 : dateTime.hour % 12}:${dateTime.minute.toString().padLeft(2, '0')} ${dateTime.hour < 12 ? 'AM' : 'PM'}";
-    return 'Date: $date\nTime: $time';
-  }
-
-  // Format due date
-  String _formatDueDate(Timestamp timestamp) {
-    final dateTime = timestamp.toDate();
-    return DateFormat('MMMM d, yyyy').format(dateTime);
-  }
-
-  // Check if task is overdue
-  bool _isOverdue(Timestamp? dueDate) {
-    if (dueDate == null) return false;
-    final now = DateTime.now();
-    final due = dueDate.toDate();
-    return now.isAfter(due) && now.day != due.day;
-  }
-
-  void _showTaskDetailsBottomSheet(Map<String, dynamic> taskData) {
-    final createdAt = taskData['createdAt'] as Timestamp?;
-    final updatedAt = taskData['updatedAt'] as Timestamp?;
-    final dueDate = taskData['dueDate'] as Timestamp?;
-    final isOverdue = dueDate != null ? _isOverdue(dueDate) : false;
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: lightPeachColor,
-      builder: (context) {
-        return Container(
-          width: MediaQuery.of(context).size.width * 0.95,
-          margin: const EdgeInsets.symmetric(vertical: 20),
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: lightPeachColor,
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'Task Details',
+    return Dismissible(
+      key: Key(taskId),
+      background: Container(
+        color: Colors.red,
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 20.0),
+        child: const Icon(
+          Icons.delete,
+          color: Colors.white,
+        ),
+      ),
+      direction: DismissDirection.endToStart,
+      confirmDismiss: (direction) async {
+        return await showDialog(
+          context: context,
+          builder: (BuildContext context) {
+            return AlertDialog(
+              backgroundColor: lightPeachColor,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              title: Text(
+                'Delete Task',
                 style: GoogleFonts.poppins(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
-              const SizedBox(height: 16),
-              RichText(
-                text: TextSpan(
-                  children: [
-                    TextSpan(
-                      text: 'Task Name: ',
-                      style: GoogleFonts.nunito(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black,
-                      ),
-                    ),
-                    TextSpan(
-                      text: '${taskData['task']}',
-                      style: GoogleFonts.nunito(
-                        fontSize: 16,
-                        color: Colors.black,
-                      ),
-                    ),
-                  ],
-                ),
+              content: Text(
+                'Are you sure you want to delete this task?',
+                style: GoogleFonts.nunito(),
               ),
-              const SizedBox(height: 8),
-              RichText(
-                text: TextSpan(
-                  children: [
-                    TextSpan(
-                      text: 'Assigned To: ',
-                      style: GoogleFonts.nunito(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black,
-                      ),
-                    ),
-                    TextSpan(
-                      text: '${taskData['assignedTo'] ?? 'Not assigned'}',
-                      style: GoogleFonts.nunito(
-                        fontSize: 16,
-                        color: Colors.black,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 8),
-              RichText(
-                text: TextSpan(
-                  children: [
-                    TextSpan(
-                      text: 'Assigned By: ',
-                      style: GoogleFonts.nunito(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black,
-                      ),
-                    ),
-                    TextSpan(
-                      text: '${taskData['assignedBy'] ?? 'Not assigned'}',
-                      style: GoogleFonts.nunito(
-                        fontSize: 16,
-                        color: Colors.black,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 8),
-              // Due date display
-              if (dueDate != null) ...[
-                RichText(
-                  text: TextSpan(
-                    children: [
-                      TextSpan(
-                        text: 'Due Date: ',
-                        style: GoogleFonts.nunito(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black,
-                        ),
-                      ),
-                      TextSpan(
-                        text: _formatDueDate(dueDate),
-                        style: GoogleFonts.nunito(
-                          fontSize: 16,
-                          color: isOverdue ? Colors.red : Colors.black,
-                          fontWeight: isOverdue ? FontWeight.bold : FontWeight.normal,
-                        ),
-                      ),
-                      if (isOverdue)
-                        TextSpan(
-                          text: ' (Overdue)',
-                          style: GoogleFonts.nunito(
-                            fontSize: 16,
-                            color: Colors.red,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                    ],
+              actions: <Widget>[
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(false),
+                  child: Text(
+                    'Cancel',
+                    style: GoogleFonts.poppins(color: Colors.black),
                   ),
                 ),
-                const SizedBox(height: 8),
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(true),
+                  child: Text(
+                    'Delete',
+                    style: GoogleFonts.poppins(color: Colors.red),
+                  ),
+                ),
               ],
-              RichText(
-                text: TextSpan(
-                  children: [
-                    TextSpan(
-                      text: 'Status: ',
-                      style: GoogleFonts.nunito(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black,
-                      ),
-                    ),
-                    TextSpan(
-                      text: '${taskData['isDone'] ? 'Done' : 'Not Done'}',
-                      style: GoogleFonts.nunito(
-                        fontSize: 16,
-                        color: Colors.black,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 8),
-              if (createdAt != null)
-                RichText(
-                  text: TextSpan(
-                    children: [
-                      TextSpan(
-                        text: 'Created At: ',
-                        style: GoogleFonts.nunito(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black,
-                        ),
-                      ),
-                      TextSpan(
-                        text: _formatTimestamp(createdAt),
-                        style: GoogleFonts.nunito(
-                          fontSize: 16,
-                          color: Colors.black,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              const SizedBox(height: 8),
-              if (updatedAt != null)
-                RichText(
-                  text: TextSpan(
-                    children: [
-                      TextSpan(
-                        text: 'Updated At: ',
-                        style: GoogleFonts.nunito(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black,
-                        ),
-                      ),
-                      TextSpan(
-                        text: _formatTimestamp(updatedAt),
-                        style: GoogleFonts.nunito(
-                          fontSize: 16,
-                          color: Colors.black,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: peachColor,
-                ),
-                child: Text(
-                  'Close',
-                  style: GoogleFonts.poppins(color: Colors.black),
-                ),
-              ),
-            ],
-          ),
+            );
+          },
         );
       },
+      onDismissed: (direction) {
+        deleteTask(taskId);
+      },
+      child: ListTile(
+        title: Text(
+          taskTitle,
+          style: GoogleFonts.nunito(
+            decoration: isDone ? TextDecoration.lineThrough : null,
+          ),
+        ),
+      ),
     );
   }
 
@@ -582,7 +397,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
           title: Text(
-            "Todo List",
+            "Task Categories",
             style: GoogleFonts.poppins(
               fontSize: 15,
               fontWeight: FontWeight.bold,
@@ -625,184 +440,145 @@ class _HomeScreenState extends State<HomeScreen> {
               : null,
         ),
       ),
-      body: Column(
-        children: [
-          Expanded(
-            child: RefreshIndicator(
-              onRefresh: _refreshScreen,
-              child: _isRefreshing
-                  ? const Center(
-                child: CircularProgressIndicator(),
-              )
-                  : StreamBuilder<QuerySnapshot>(
-                stream: _firestore.collection('todos').snapshots(),
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return Center(
-                      child: CircularProgressIndicator(
-                        color: peachColor,
-                      ),
-                    );
-                  }
-
-                  if (snapshot.hasError) {
-                    return Center(
-                      child: Text(
-                        'Error: ${snapshot.error}',
-                        style: GoogleFonts.poppins(),
-                      ),
-                    );
-                  }
-
-                  if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                    return Center(
-                      child: Text(
-                        'No tasks found.',
-                        style: GoogleFonts.poppins(
-                          fontSize: 16,
-                          color: Colors.grey[600],
-                        ),
-                      ),
-                    );
-                  }
-
-                  final tasks = snapshot.data!.docs;
-
-                  return Padding(
-                    padding: const EdgeInsets.all(12.0),
-                    child: ListView.builder(
-                      itemCount: tasks.length,
-                      itemBuilder: (context, index) {
-                        final task = tasks[index];
-                        final taskId = task.id;
-                        final taskData = task.data() as Map<String, dynamic>;
-                        final taskTitle = taskData['task'];
-                        final isDone = taskData['isDone'];
-                        final assignedTo = taskData['assignedTo'];
-                        final dueDate = taskData['dueDate'] as Timestamp?;
-                        final isOverdue = dueDate != null ? _isOverdue(dueDate) : false;
-
-                        return Dismissible(
-                          key: Key(taskId),
-                          direction: DismissDirection.endToStart,
-                          background: Container(
-                            color: darkPeachColor,
-                            alignment: Alignment.centerRight,
-                            padding: const EdgeInsets.only(right: 20),
-                            child: const Icon(
-                              Icons.delete,
-                              color: Colors.white,
-                            ),
-                          ),
-                          onDismissed: (direction) async {
-                            await _firestore.collection('todos').doc(taskId).delete();
-                          },
-                          child: Card(
-                            margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-                            color: lightPeachColor,
-                            elevation: 2,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(15),
-                            ),
-                            child: ListTile(
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 8,
-                              ),
-                              title: Text(
-                                taskTitle,
-                                style: GoogleFonts.nunito(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.black87,
-                                ),
-                              ),
-                              subtitle: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Assigned to: $assignedTo',
-                                    style: GoogleFonts.nunito(
-                                      fontSize: 14,
-                                      color: Colors.black54,
-                                    ),
-                                  ),
-                                  if (dueDate != null)
-                                    Text(
-                                      'Due: ${DateFormat('MMM d').format(dueDate.toDate())}',
-                                      style: GoogleFonts.nunito(
-                                        fontSize: 14,
-                                        color: isOverdue ? Colors.red : Colors.black54,
-                                        fontWeight: isOverdue ? FontWeight.bold : FontWeight.normal,
-                                      ),
-                                    ),
-                                ],
-                              ),
-                              trailing: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  IconButton(
-                                    icon: const Icon(Icons.edit, color: Colors.black54),
-                                    onPressed: () => showTaskDialog(
-                                      taskId: taskId,
-                                      currentTask: taskTitle,
-                                      currentAssignee: taskData['assignedTo'],
-                                      currentAssignedBy: taskData['assignedBy'],
-                                      currentDueDate: dueDate?.toDate(),
-                                    ),
-                                  ),
-                                  Checkbox(
-                                    value: isDone,
-                                    activeColor: peachColor,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
-                                    onChanged: (value) async {
-                                      await _firestore.collection('todos').doc(taskId).update({
-                                        'isDone': value ?? false,
-                                      });
-                                    },
-                                  ),
-                                ],
-                              ),
-                              onTap: () {
-                                _showTaskDetailsBottomSheet(taskData);
-                              },
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  );
-                },
-              ),
-            ),
-          ),
-          // Add a button at the bottom
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: ElevatedButton(
-              onPressed: () {
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: GridView.count(
+          crossAxisCount: 2,
+          crossAxisSpacing: 16.0,
+          mainAxisSpacing: 16.0,
+          children: [
+            GestureDetector(
+              onTap: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => const CustomTextFieldScreen()),
+                  MaterialPageRoute(builder: (context) => const CompletedTaskScreen()),
                 );
               },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: peachColor,
-                minimumSize: const Size(50, 50),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
+              child: Card(
+                elevation: 4.0,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12.0),
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [Colors.green.withOpacity(0.7), Colors.green],
+                    ),
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(
+                        Icons.check_circle,
+                        size: 50.0,
+                        color: Colors.white,
+                      ),
+                      const SizedBox(height: 12.0),
+                      Text(
+                        "Completed Tasks",
+                        style: GoogleFonts.poppins(
+                          fontSize: 16.0,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
                 ),
               ),
-              child: const Icon(
-                Icons.list,
-                color: Colors.black,
-                size: 24,
+            ),
+
+            // Uncompleted Tasks Card
+            GestureDetector(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const UncompletedTaskScreen()),
+                );
+              },
+              child: Card(
+                elevation: 4.0,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12.0),
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [Colors.red.withOpacity(0.7), Colors.red],
+                    ),
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(
+                        Icons.cancel,
+                        size: 50.0,
+                        color: Colors.white,
+                      ),
+                      const SizedBox(height: 12.0),
+                      Text(
+                        "Uncompleted Tasks",
+                        style: GoogleFonts.poppins(
+                          fontSize: 16.0,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
-          ),
-        ],
+
+            // Pending Tasks Card
+            GestureDetector(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const PendingTaskScreen()),
+                );
+              },
+              child: Card(
+                elevation: 4.0,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12.0),
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [Colors.orange.withOpacity(0.7), Colors.orange],
+                    ),
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(
+                        Icons.pending_actions,
+                        size: 50.0,
+                        color: Colors.white,
+                      ),
+                      const SizedBox(height: 12.0),
+                      Text(
+                        "Pending Tasks",
+                        style: GoogleFonts.poppins(
+                          fontSize: 16.0,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => showTaskDialog(),
