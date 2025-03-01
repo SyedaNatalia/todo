@@ -23,7 +23,6 @@ class _PendingTaskScreenState extends State<PendingTaskScreen> {
     return 'Date: $date\nTime: $time';
   }
 
-  // Format due date
   String _formatDueDate(Timestamp timestamp) {
     final dateTime = timestamp.toDate();
     return DateFormat('MMMM d, yyyy').format(dateTime);
@@ -259,6 +258,9 @@ class _PendingTaskScreenState extends State<PendingTaskScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final now = DateTime.now();
+    final currentDate = DateTime(now.year, now.month, now.day);
+
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Colors.orange,
@@ -318,12 +320,40 @@ class _PendingTaskScreenState extends State<PendingTaskScreen> {
 
           final tasks = snapshot.data!.docs;
 
+          // Filter out tasks that are past their due date
+          final validTasks = tasks.where((task) {
+            final taskData = task.data() as Map<String, dynamic>;
+            final dueDate = taskData['dueDate'] as Timestamp?;
+
+            // If there's no due date, include the task
+            if (dueDate == null) return true;
+
+            // Convert Timestamp to DateTime (just the date part)
+            final taskDueDate = dueDate.toDate();
+            final dueDateOnly = DateTime(taskDueDate.year, taskDueDate.month, taskDueDate.day);
+
+            // Include tasks where the due date is today or in the future
+            return dueDateOnly.isAtSameMomentAs(currentDate) || dueDateOnly.isAfter(currentDate);
+          }).toList();
+
+          if (validTasks.isEmpty) {
+            return Center(
+              child: Text(
+                'No pending tasks with valid due dates found.',
+                style: GoogleFonts.poppins(
+                  fontSize: 16,
+                  color: Colors.grey[600],
+                ),
+              ),
+            );
+          }
+
           return Padding(
             padding: const EdgeInsets.all(12.0),
             child: ListView.builder(
-              itemCount: tasks.length,
+              itemCount: validTasks.length,
               itemBuilder: (context, index) {
-                final task = tasks[index];
+                final task = validTasks[index];
                 final taskId = task.id;
                 final taskData = task.data() as Map<String, dynamic>;
                 final taskTitle = taskData['task'];
@@ -349,7 +379,7 @@ class _PendingTaskScreenState extends State<PendingTaskScreen> {
                   },
                   child: Card(
                     margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-                    color: const Color(0xFFFFF3E0), // Light orange background
+                    color: const Color(0xFFFFF3E0),
                     elevation: 2,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(15),
@@ -387,9 +417,7 @@ class _PendingTaskScreenState extends State<PendingTaskScreen> {
                               'Due: ${DateFormat('MMM d, yyyy').format(dueDate.toDate())}',
                               style: GoogleFonts.nunito(
                                 fontSize: 14,
-                                color: dueDate.toDate().isBefore(DateTime.now())
-                                    ? Colors.red[700]  // Past due
-                                    : Colors.black54,
+                                color: Colors.black54,
                               ),
                             ),
                         ],

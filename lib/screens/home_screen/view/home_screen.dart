@@ -3,12 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
-import '../../../services/auth_service.dart';
-import '../../completed_tak/view/completed_task.dart';
-import '../../login_screen.dart';
-import '../../pending_task/view/pending_task.dart';
-import '../../profile_screen.dart';
-import '../../uncomplete_task/view/uncomplete_task.dart';
+import 'package:new_project/screens/completed_tak/view/completed_task.dart';
+import 'package:new_project/screens/login_screen.dart';
+import 'package:new_project/screens/overdue_task.dart';
+import 'package:new_project/screens/pending_task/view/pending_task.dart';
+import 'package:new_project/screens/profile_screen.dart';
+import 'package:new_project/services/auth_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -386,6 +386,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    User? user = FirebaseAuth.instance.currentUser;
     return Scaffold(
       appBar: PreferredSize(
         preferredSize: Size.fromHeight((_isLoading || _isRefreshing) ? 150 : 50),
@@ -451,7 +452,8 @@ class _HomeScreenState extends State<HomeScreen> {
               onTap: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => const CompletedTaskScreen()),
+                  MaterialPageRoute(builder: (context) => const CompletedTaskScreen(
+                  )),
                 );
               },
               child: Card(
@@ -489,57 +491,77 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
             ),
-
-            // Uncompleted Tasks Card
             GestureDetector(
               onTap: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => const UncompletedTaskScreen()),
+                  MaterialPageRoute(builder: (context) => const OverdueTaskScreen(
+                  )),
                 );
               },
-              child: Card(
-                elevation: 4.0,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
-                child: Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(12.0),
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [Colors.red.withOpacity(0.7), Colors.red],
+              child: StreamBuilder<QuerySnapshot>(
+                stream: FirebaseFirestore.instance
+                    .collection('todos')
+                .where('assignedTo', isEqualTo: user?.email)
+                    .where('isDone', isEqualTo: false)
+                    .where('dueDate', isLessThan: Timestamp.now())
+                    .snapshots(),
+                builder: (context, snapshot) {
+                  final overdueCount = snapshot.hasData ? snapshot.data!.docs.length : 0;
+
+                  return Card(
+                    elevation: 4.0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12.0),
                     ),
-                  ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(
-                        Icons.cancel,
-                        size: 50.0,
-                        color: Colors.white,
-                      ),
-                      const SizedBox(height: 12.0),
-                      Text(
-                        "Uncompleted Tasks",
-                        style: GoogleFonts.poppins(
-                          fontSize: 16.0,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12.0),
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            Colors.red.withOpacity(0.7),
+                            Colors.red,
+                          ],
                         ),
-                        textAlign: TextAlign.center,
                       ),
-                    ],
-                  ),
-                ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(
+                              Icons.warning,
+                              size: 50.0,
+                              color: Colors.white,
+                            ),
+                            const SizedBox(height: 12.0),
+                            Text(
+                              "Overdue Tasks",
+                              style: GoogleFonts.poppins(
+                                fontSize: 12.0,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 8.0),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                },
               ),
             ),
 
-            // Pending Tasks Card
             GestureDetector(
               onTap: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => const PendingTaskScreen()),
+                  MaterialPageRoute(builder: (context) => const PendingTaskScreen(
+                  )),
                 );
               },
               child: Card(
