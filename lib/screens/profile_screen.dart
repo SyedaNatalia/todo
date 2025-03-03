@@ -71,13 +71,11 @@ class ProfileScreen extends StatelessWidget {
                 }
               },
             ),
-
           ],
         ),
       ),
     );
   }
-
   Widget _buildProfileInfo(String label, String value) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8.0),

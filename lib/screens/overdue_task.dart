@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class OverdueTaskScreen extends StatefulWidget {
   const OverdueTaskScreen({Key? key}) : super(key: key);
@@ -12,9 +13,12 @@ class OverdueTaskScreen extends StatefulWidget {
 
 class _OverdueTaskScreenState extends State<OverdueTaskScreen> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
   final Color redColor = const Color(0xFFF94144);
   final Color lightRedColor = const Color(0xFFF8D7DA);
   final Color darkRedColor = const Color(0xFFE63946);
+
+  String? get _currentUserEmail => _auth.currentUser?.email;
 
   String _formatTimestamp(Timestamp timestamp) {
     final dateTime = timestamp.toDate();
@@ -313,6 +317,51 @@ class _OverdueTaskScreenState extends State<OverdueTaskScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_currentUserEmail == null) {
+      return Scaffold(
+        appBar: AppBar(
+          backgroundColor: redColor,
+          title: Text(
+            "Overdue Tasks",
+            style: GoogleFonts.poppins(
+              fontSize: 15,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+          ),
+          centerTitle: true,
+          shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(
+              bottom: Radius.circular(30),
+            ),
+          ),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            onPressed: () => Navigator.pop(context),
+          ),
+        ),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.error_outline,
+                size: 60,
+                color: redColor,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Please log in to view your tasks',
+                style: GoogleFonts.poppins(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
     return Scaffold(
       appBar: AppBar(
         backgroundColor: redColor,
@@ -337,6 +386,7 @@ class _OverdueTaskScreenState extends State<OverdueTaskScreen> {
       ),
       body: StreamBuilder<QuerySnapshot>(
         stream: _firestore.collection('todos')
+            .where('assignedTo', isEqualTo: _currentUserEmail)
             .where('isDone', isEqualTo: false)
             .where('status', isEqualTo: 'pending')
             .snapshots(),
@@ -348,7 +398,6 @@ class _OverdueTaskScreenState extends State<OverdueTaskScreen> {
               ),
             );
           }
-
           if (snapshot.hasError) {
             return Center(
               child: Text(
@@ -357,7 +406,6 @@ class _OverdueTaskScreenState extends State<OverdueTaskScreen> {
               ),
             );
           }
-
           if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
             return Center(
               child: Column(
@@ -389,23 +437,18 @@ class _OverdueTaskScreenState extends State<OverdueTaskScreen> {
               ),
             );
           }
-
           final allTasks = snapshot.data!.docs;
           final overdueTasks = allTasks.where((doc) {
             final data = doc.data() as Map<String, dynamic>;
             final dueDate = data['dueDate'] as Timestamp?;
-
             if (dueDate == null) return false;
 
             final now = DateTime.now();
             final dueDateTime = dueDate.toDate();
-
             final nowDate = DateTime(now.year, now.month, now.day);
             final dueDateOnly = DateTime(dueDateTime.year, dueDateTime.month, dueDateTime.day);
-
             return dueDateOnly.isBefore(nowDate);
           }).toList();
-
           if (overdueTasks.isEmpty) {
             return Center(
               child: Column(
@@ -437,7 +480,6 @@ class _OverdueTaskScreenState extends State<OverdueTaskScreen> {
               ),
             );
           }
-
           return Padding(
             padding: const EdgeInsets.all(12.0),
             child: Column(
@@ -480,9 +522,7 @@ class _OverdueTaskScreenState extends State<OverdueTaskScreen> {
                       final taskTitle = taskData['task'];
                       final assignedTo = taskData['assignedTo'];
                       final dueDate = taskData['dueDate'] as Timestamp;
-
                       final taskDataWithId = {...taskData, 'id': taskId};
-
                       return Dismissible(
                         key: Key(taskId),
                         direction: DismissDirection.endToStart,
@@ -507,15 +547,14 @@ class _OverdueTaskScreenState extends State<OverdueTaskScreen> {
                               action: SnackBarAction(
                                 label: 'UNDO',
                                 textColor: Colors.white,
-                                onPressed: () {
-                                },
+                                onPressed: () {},
                               ),
                             ),
                           );
                         },
                         child: Card(
                           margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-                          color: lightRedColor, // Light red background
+                          color: lightRedColor,
                           elevation: 2,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(15),
@@ -555,13 +594,6 @@ class _OverdueTaskScreenState extends State<OverdueTaskScreen> {
                             subtitle: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
-                                  'Assigned to: $assignedTo',
-                                  style: GoogleFonts.nunito(
-                                    fontSize: 14,
-                                    color: Colors.black54,
-                                  ),
-                                ),
                                 Text(
                                   'Due: ${DateFormat('MMM d, yyyy').format(dueDate.toDate())} (${_getDaysOverdue(dueDate)})',
                                   style: GoogleFonts.nunito(
@@ -613,7 +645,6 @@ class _OverdueTaskScreenState extends State<OverdueTaskScreen> {
                                     try {
                                       final now = DateTime.now();
                                       final newDueDate = DateTime(now.year, now.month, now.day + 1);
-
                                       await _firestore.collection('todos').doc(taskId).update({
                                         'dueDate': Timestamp.fromDate(newDueDate),
                                         'updatedAt': Timestamp.now(),

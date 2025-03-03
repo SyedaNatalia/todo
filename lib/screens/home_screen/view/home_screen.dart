@@ -31,6 +31,9 @@ class _HomeScreenState extends State<HomeScreen> {
   String? _selectedUser;
   DateTime? _selectedDueDate;
 
+  //user current email
+  String get currentUserEmail => FirebaseAuth.instance.currentUser?.email ?? '';
+
   @override
   void dispose() {
     _taskController.dispose();
@@ -83,7 +86,6 @@ class _HomeScreenState extends State<HomeScreen> {
             label: 'Undo',
             textColor: Colors.white,
             onPressed: () {
-              // Implement undo functionality if needed
             },
           ),
         ),
@@ -108,8 +110,7 @@ class _HomeScreenState extends State<HomeScreen> {
     DateTime? currentDueDate,
   }) async {
     _taskController.text = currentTask ?? '';
-    String? selectedAssignee = currentAssignee;
-    String currentUserEmail = FirebaseAuth.instance.currentUser?.email ?? '';
+    String? selectedAssignee = currentAssignee ?? currentUserEmail;
     _selectedDueDate = currentDueDate;
     List<String> userEmails = [];
     bool isLoadingUsers = true;
@@ -122,7 +123,7 @@ class _HomeScreenState extends State<HomeScreen> {
             .toList();
 
         if (selectedAssignee == null && userEmails.isNotEmpty) {
-          selectedAssignee = userEmails[0];
+          selectedAssignee = currentUserEmail;
         }
 
         isLoadingUsers = false;
@@ -313,80 +314,12 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget buildTaskItem(BuildContext context, DocumentSnapshot document) {
-    final Map<String, dynamic> data = document.data() as Map<String, dynamic>;
-    final String taskId = document.id;
-    final String taskTitle = data['task'] ?? 'Untitled Task';
-    final bool isDone = data['isDone'] ?? false;
-
-    return Dismissible(
-      key: Key(taskId),
-      background: Container(
-        color: Colors.red,
-        alignment: Alignment.centerRight,
-        padding: const EdgeInsets.only(right: 20.0),
-        child: const Icon(
-          Icons.delete,
-          color: Colors.white,
-        ),
-      ),
-      direction: DismissDirection.endToStart,
-      confirmDismiss: (direction) async {
-        return await showDialog(
-          context: context,
-          builder: (BuildContext context) {
-            return AlertDialog(
-              backgroundColor: lightPeachColor,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-              ),
-              title: Text(
-                'Delete Task',
-                style: GoogleFonts.poppins(
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              content: Text(
-                'Are you sure you want to delete this task?',
-                style: GoogleFonts.nunito(),
-              ),
-              actions: <Widget>[
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(false),
-                  child: Text(
-                    'Cancel',
-                    style: GoogleFonts.poppins(color: Colors.black),
-                  ),
-                ),
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(true),
-                  child: Text(
-                    'Delete',
-                    style: GoogleFonts.poppins(color: Colors.red),
-                  ),
-                ),
-              ],
-            );
-          },
-        );
-      },
-      onDismissed: (direction) {
-        deleteTask(taskId);
-      },
-      child: ListTile(
-        title: Text(
-          taskTitle,
-          style: GoogleFonts.nunito(
-            decoration: isDone ? TextDecoration.lineThrough : null,
-          ),
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
+    //Get currentUser
     User? user = FirebaseAuth.instance.currentUser;
+    String userEmail = user?.email ?? '';
+
     return Scaffold(
       appBar: PreferredSize(
         preferredSize: Size.fromHeight((_isLoading || _isRefreshing) ? 150 : 50),
@@ -416,7 +349,6 @@ class _HomeScreenState extends State<HomeScreen> {
               },
               icon: const Icon(Icons.person, color: Colors.black),
             ),
-            // Logout Icon
             IconButton(
               onPressed: () async {
                 await AuthService().signOut();
@@ -443,160 +375,198 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
-        child: GridView.count(
-          crossAxisCount: 2,
-          crossAxisSpacing: 16.0,
-          mainAxisSpacing: 16.0,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            GestureDetector(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const CompletedTaskScreen(
-                  )),
-                );
-              },
-              child: Card(
-                elevation: 4.0,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
-                child: Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(12.0),
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [Colors.green.withOpacity(0.7), Colors.green],
-                    ),
-                  ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(
-                        Icons.check_circle,
-                        size: 50.0,
-                        color: Colors.white,
-                      ),
-                      const SizedBox(height: 12.0),
-                      Text(
-                        "Completed Tasks",
-                        style: GoogleFonts.poppins(
-                          fontSize: 16.0,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
-                  ),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 16.0),
+              child: Text(
+                "Welcome, ${userEmail}",
+                style: GoogleFonts.poppins(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
             ),
-            GestureDetector(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const OverdueTaskScreen(
-                  )),
-                );
-              },
-              child: StreamBuilder<QuerySnapshot>(
-                stream: FirebaseFirestore.instance
-                    .collection('todos')
-                .where('assignedTo', isEqualTo: user?.email)
-                    .where('isDone', isEqualTo: false)
-                    .where('dueDate', isLessThan: Timestamp.now())
-                    .snapshots(),
-                builder: (context, snapshot) {
-                  final overdueCount = snapshot.hasData ? snapshot.data!.docs.length : 0;
+            Expanded(
+              child: GridView.count(
+                crossAxisCount: 2,
+                crossAxisSpacing: 16.0,
+                mainAxisSpacing: 16.0,
+                children: [
+                  StreamBuilder<QuerySnapshot>(
+                    stream: FirebaseFirestore.instance
+                        .collection('todos')
+                        .where('assignedTo', isEqualTo: userEmail)
+                        .where('isDone', isEqualTo: true)
+                        .snapshots(),
+                    builder: (context, snapshot) {
+                      final completedCount = snapshot.hasData ? snapshot.data!.docs.length : 0;
 
-                  return Card(
-                    elevation: 4.0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12.0),
-                    ),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(12.0),
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [
-                            Colors.red.withOpacity(0.7),
-                            Colors.red,
-                          ],
-                        ),
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.all(16.0),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(
-                              Icons.warning,
-                              size: 50.0,
-                              color: Colors.white,
+                      return GestureDetector(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => CompletedTaskScreen(),
                             ),
-                            const SizedBox(height: 12.0),
-                            Text(
-                              "Overdue Tasks",
-                              style: GoogleFonts.poppins(
-                                fontSize: 12.0,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
+                          );
+                        },
+                        child: Card(
+                          elevation: 4.0,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(12.0),
+                              gradient: LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: [Colors.green.withOpacity(0.7), Colors.green],
                               ),
-                              textAlign: TextAlign.center,
                             ),
-                            const SizedBox(height: 8.0),
-                          ],
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(
+                                  Icons.check_circle,
+                                  size: 50.0,
+                                  color: Colors.white,
+                                ),
+                                const SizedBox(height: 8.0),
+                                Text(
+                                  "Completed Tasks",
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 16.0,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
+                      );
+                    },
+                  ),
+                  StreamBuilder<QuerySnapshot>(
+                    stream: FirebaseFirestore.instance
+                        .collection('todos')
+                        .where('assignedTo', isEqualTo: userEmail)
+                        .where('isDone', isEqualTo: false)
+                        .where('dueDate', isLessThan: Timestamp.now())
+                        .snapshots(),
+                    builder: (context, snapshot) {
+                      final overdueCount = snapshot.hasData ? snapshot.data!.docs.length : 0;
 
-            GestureDetector(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const PendingTaskScreen(
-                  )),
-                );
-              },
-              child: Card(
-                elevation: 4.0,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
-                child: Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(12.0),
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [Colors.orange.withOpacity(0.7), Colors.orange],
-                    ),
-                  ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(
-                        Icons.pending_actions,
-                        size: 50.0,
-                        color: Colors.white,
-                      ),
-                      const SizedBox(height: 12.0),
-                      Text(
-                        "Pending Tasks",
-                        style: GoogleFonts.poppins(
-                          fontSize: 16.0,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                      return GestureDetector(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => OverdueTaskScreen(),
+                            ),
+                          );
+                        },
+                        child: Card(
+                          elevation: 4.0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12.0),
+                          ),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(12.0),
+                              gradient: LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: [
+                                  Colors.red.withOpacity(0.7),
+                                  Colors.red,
+                                ],
+                              ),
+                            ),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(
+                                  Icons.warning,
+                                  size: 50.0,
+                                  color: Colors.white,
+                                ),
+                                const SizedBox(height: 8.0),
+                                Text(
+                                  "Overdue Tasks",
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 16.0,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
+                      );
+                    },
                   ),
-                ),
+                  StreamBuilder<QuerySnapshot>(
+                    stream: FirebaseFirestore.instance
+                        .collection('todos')
+                        .where('assignedTo', isEqualTo: userEmail)
+                        .where('isDone', isEqualTo: false)
+                        .where('status', isEqualTo: 'pending')
+                        .snapshots(),
+                    builder: (context, snapshot) {
+                      final pendingCount = snapshot.hasData ? snapshot.data!.docs.length : 0;
+
+                      return GestureDetector(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => PendingTaskScreen(),
+                            ),
+                          );
+                        },
+                        child: Card(
+                          elevation: 4.0,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(12.0),
+                              gradient: LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: [Colors.orange.withOpacity(0.7), Colors.orange],
+                              ),
+                            ),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(
+                                  Icons.pending_actions,
+                                  size: 50.0,
+                                  color: Colors.white,
+                                ),
+                                const SizedBox(height: 8.0),
+                                Text(
+                                  "Pending Tasks",
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 16.0,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ],
               ),
             ),
           ],

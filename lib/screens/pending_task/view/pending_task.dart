@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class PendingTaskScreen extends StatefulWidget {
   const PendingTaskScreen({Key? key}) : super(key: key);
@@ -12,9 +13,13 @@ class PendingTaskScreen extends StatefulWidget {
 
 class _PendingTaskScreenState extends State<PendingTaskScreen> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
   final Color peachColor = const Color(0xFFFFB5A7);
   final Color lightPeachColor = const Color(0xFFFFE5E0);
   final Color darkPeachColor = const Color(0xFFFF8576);
+
+  String? get _currentUserId => _auth.currentUser?.uid;
+  String? get _currentUserEmail => _auth.currentUser?.email;
 
   String _formatTimestamp(Timestamp timestamp) {
     final dateTime = timestamp.toDate();
@@ -261,6 +266,40 @@ class _PendingTaskScreenState extends State<PendingTaskScreen> {
     final now = DateTime.now();
     final currentDate = DateTime(now.year, now.month, now.day);
 
+    if (_currentUserId == null) {
+      return Scaffold(
+        appBar: AppBar(
+          backgroundColor: Colors.orange,
+          title: Text(
+            "Pending Tasks",
+            style: GoogleFonts.poppins(
+              fontSize: 15,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+          ),
+          centerTitle: true,
+          shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(
+              bottom: Radius.circular(30),
+            ),
+          ),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            onPressed: () => Navigator.pop(context),
+          ),
+        ),
+        body: Center(
+          child: Text(
+            'Please login to view your tasks',
+            style: GoogleFonts.poppins(
+              fontSize: 16,
+              color: Colors.grey[600],
+            ),
+          ),
+        ),
+      );
+    }
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Colors.orange,
@@ -287,6 +326,7 @@ class _PendingTaskScreenState extends State<PendingTaskScreen> {
         stream: _firestore.collection('todos')
             .where('isDone', isEqualTo: false)
             .where('status', isEqualTo: 'pending')
+            .where('assignedTo', isEqualTo: _currentUserEmail)
             .snapshots(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
@@ -296,7 +336,6 @@ class _PendingTaskScreenState extends State<PendingTaskScreen> {
               ),
             );
           }
-
           if (snapshot.hasError) {
             return Center(
               child: Text(
@@ -309,7 +348,7 @@ class _PendingTaskScreenState extends State<PendingTaskScreen> {
           if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
             return Center(
               child: Text(
-                'No pending tasks found.',
+                'No pending tasks found for you.',
                 style: GoogleFonts.poppins(
                   fontSize: 16,
                   color: Colors.grey[600],
@@ -317,29 +356,22 @@ class _PendingTaskScreenState extends State<PendingTaskScreen> {
               ),
             );
           }
-
           final tasks = snapshot.data!.docs;
 
-          // Filter out tasks that are past their due date
           final validTasks = tasks.where((task) {
             final taskData = task.data() as Map<String, dynamic>;
             final dueDate = taskData['dueDate'] as Timestamp?;
-
-            // If there's no due date, include the task
             if (dueDate == null) return true;
-
-            // Convert Timestamp to DateTime (just the date part)
             final taskDueDate = dueDate.toDate();
             final dueDateOnly = DateTime(taskDueDate.year, taskDueDate.month, taskDueDate.day);
 
-            // Include tasks where the due date is today or in the future
             return dueDateOnly.isAtSameMomentAs(currentDate) || dueDateOnly.isAfter(currentDate);
           }).toList();
 
           if (validTasks.isEmpty) {
             return Center(
               child: Text(
-                'No pending tasks with valid due dates found.',
+                'No pending tasks with valid due dates found for you.',
                 style: GoogleFonts.poppins(
                   fontSize: 16,
                   color: Colors.grey[600],
@@ -347,7 +379,6 @@ class _PendingTaskScreenState extends State<PendingTaskScreen> {
               ),
             );
           }
-
           return Padding(
             padding: const EdgeInsets.all(12.0),
             child: ListView.builder(
@@ -361,7 +392,6 @@ class _PendingTaskScreenState extends State<PendingTaskScreen> {
                 final dueDate = taskData['dueDate'] as Timestamp?;
 
                 final taskDataWithId = {...taskData, 'id': taskId};
-
                 return Dismissible(
                   key: Key(taskId),
                   direction: DismissDirection.endToStart,
@@ -399,8 +429,7 @@ class _PendingTaskScreenState extends State<PendingTaskScreen> {
                         style: GoogleFonts.nunito(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
-                          color: Colors.black87,
-                        ),
+                          color: Colors.black87,),
                       ),
                       subtitle: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
