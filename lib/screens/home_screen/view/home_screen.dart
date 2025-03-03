@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'package:new_project/screens/chat_screen.dart';
 import 'package:new_project/screens/completed_tak/view/completed_task.dart';
 import 'package:new_project/screens/login_screen.dart';
 import 'package:new_project/screens/overdue_task.dart';
@@ -12,11 +13,9 @@ import 'package:new_project/services/auth_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
-
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
-
 class _HomeScreenState extends State<HomeScreen> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final TextEditingController _taskController = TextEditingController();
@@ -33,13 +32,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
   //user current email
   String get currentUserEmail => FirebaseAuth.instance.currentUser?.email ?? '';
-
   @override
   void dispose() {
     _taskController.dispose();
     super.dispose();
   }
-
   Future<void> _selectDate(BuildContext context, StateSetter setDialogState) async {
     final DateTime? picked = await showDatePicker(
       context: context,
@@ -64,37 +61,47 @@ class _HomeScreenState extends State<HomeScreen> {
         );
       },
     );
-
     if (picked != null && picked != _selectedDueDate) {
       setDialogState(() {
         _selectedDueDate = picked;
       });
     }
   }
-
   Future<void> deleteTask(String taskId) async {
     try {
-      await _firestore.collection('todos').doc(taskId).delete();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Task deleted successfully',
-            style: GoogleFonts.poppins(),
+      String? currentUserId = FirebaseAuth.instance.currentUser?.uid;//GetCurrentUserID
+      DocumentSnapshot userSnapshot = await FirebaseFirestore.instance//UserRole
+          .collection('users')
+          .doc(currentUserId)
+          .get();
+      if (!userSnapshot.exists) {
+        throw Exception("User not found");
+      }
+      String userRole = userSnapshot.get('role') ?? 'User';
+      if (userRole == "Manager") {
+        await FirebaseFirestore.instance.collection('todos').doc(taskId).delete();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Task deleted successfully',
+              style: GoogleFonts.poppins(),
+            ),
+            backgroundColor: Colors.green,
+            action: SnackBarAction(
+              label: 'Undo',
+              textColor: Colors.white,
+              onPressed: () {},
+            ),
           ),
-          backgroundColor: Colors.green,
-          action: SnackBarAction(
-            label: 'Undo',
-            textColor: Colors.white,
-            onPressed: () {
-            },
-          ),
-        ),
-      );
+        );
+      } else {
+        throw Exception("Only Managers can delete tasks.");
+      }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Failed to delete task. Please try again.',
+            e.toString(),
             style: GoogleFonts.poppins(),
           ),
           backgroundColor: Colors.red,
@@ -102,7 +109,6 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
   }
-
   Future<void> showTaskDialog({
     String? taskId,
     String? currentTask,
@@ -114,37 +120,31 @@ class _HomeScreenState extends State<HomeScreen> {
     _selectedDueDate = currentDueDate;
     List<String> userEmails = [];
     bool isLoadingUsers = true;
-
     Future<void> fetchUsers() async {
       try {
         final QuerySnapshot userSnapshot = await _firestore.collection('users').get();
         userEmails = userSnapshot.docs
             .map((doc) => doc['email'] as String)
             .toList();
-
         if (selectedAssignee == null && userEmails.isNotEmpty) {
           selectedAssignee = currentUserEmail;
         }
-
         isLoadingUsers = false;
       } catch (e) {
         print('Error fetching users: $e');
         isLoadingUsers = false;
       }
     }
-
     await showDialog(
       context: context,
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setState) {
-
             if (isLoadingUsers) {
               fetchUsers().then((_) {
                 setState(() {});
               });
             }
-
             return AlertDialog(
               backgroundColor: lightPeachColor,
               shape: RoundedRectangleBorder(
@@ -206,7 +206,6 @@ class _HomeScreenState extends State<HomeScreen> {
                       isExpanded: true,
                     ),
                     SizedBox(height: 16),
-                    // Due date picker
                     InkWell(
                       onTap: () => _selectDate(context, setState),
                       child: InputDecorator(
@@ -259,11 +258,8 @@ class _HomeScreenState extends State<HomeScreen> {
                           'updatedAt': Timestamp.now(),
                           'status': 'pending',
                         };
-
                         if (_selectedDueDate != null) {
-                          taskData['dueDate'] = Timestamp.fromDate(_selectedDueDate!);
-                        }
-
+                          taskData['dueDate'] = Timestamp.fromDate(_selectedDueDate!);}
                         if (taskId != null) {
                           await _firestore.collection('todos').doc(taskId).update(taskData);
                         } else {
@@ -313,64 +309,72 @@ class _HomeScreenState extends State<HomeScreen> {
       },
     );
   }
-
   @override
   Widget build(BuildContext context) {
-    //Get currentUser
     User? user = FirebaseAuth.instance.currentUser;
     String userEmail = user?.email ?? '';
-
     return Scaffold(
       appBar: PreferredSize(
-        preferredSize: Size.fromHeight((_isLoading || _isRefreshing) ? 150 : 50),
-        child: AppBar(
-          backgroundColor: peachColor,
-          shape: const RoundedRectangleBorder(
-            borderRadius: BorderRadius.vertical(
-              bottom: Radius.circular(30),
-            ),
-          ),
-          title: Text(
-            "Task Categories",
-            style: GoogleFonts.poppins(
-              fontSize: 15,
-              fontWeight: FontWeight.bold,
-              color: Colors.black,
-            ),
-          ),
-          centerTitle: true,
-          actions: [
-            IconButton(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const ProfileScreen()),
-                );
-              },
-              icon: const Icon(Icons.person, color: Colors.black),
-            ),
-            IconButton(
-              onPressed: () async {
-                await AuthService().signOut();
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(builder: (context) => const LoginScreen()),
-                );
-              },
-              icon: const Icon(Icons.logout_rounded, color: Colors.black),
-            ),
-          ],
-          bottom: (_isLoading || _isRefreshing)
-              ? PreferredSize(
-            preferredSize: const Size.fromHeight(100),
-            child: Padding(
-              padding: const EdgeInsets.only(bottom: 20.0),
-              child: CircularProgressIndicator(
-                color: Colors.white,
+        preferredSize: Size.fromHeight((_isLoading || _isRefreshing) ? 150 : 70),
+        child: StreamBuilder<DocumentSnapshot>(
+          stream: FirebaseFirestore.instance.collection('users').doc(user?.uid).snapshots(),
+          builder: (context, snapshot) {
+            if (!snapshot.hasData || !snapshot.data!.exists) {
+              return AppBar(
+                backgroundColor: peachColor,
+                title: Text("Task Categories", style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black)),
+                centerTitle: true,
+              );
+            }
+            var userData = snapshot.data!;
+            String userFirstName = userData['firstName'] ?? 'User';
+            String userRole = userData['role'] ?? 'No role assigned';
+
+            return AppBar(
+              backgroundColor: peachColor,
+              shape: const RoundedRectangleBorder(
+                borderRadius: BorderRadius.vertical(bottom: Radius.circular(30)),
               ),
-            ),
-          )
-              : null,
+              title: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text("Welcome,$userFirstName", style: GoogleFonts.poppins(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.black)),
+                  Text("$userRole", style: GoogleFonts.poppins(fontSize: 8, color: Colors.black)),
+                  Text(userEmail, style: GoogleFonts.poppins(fontSize: 6, color: Colors.black)),
+                ],
+              ),
+              actions: [
+                IconButton(
+                  onPressed: () {
+                    Navigator.push(context, MaterialPageRoute(builder: (context) => const ProfileScreen()));
+                  },
+                  icon: const Icon(Icons.person, color: Colors.black),
+                ),
+                IconButton(
+                  onPressed: () async {
+                    await AuthService().signOut();
+                    Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const LoginScreen()));
+                  },
+                  icon: const Icon(Icons.logout_rounded, color: Colors.black),
+                ),
+                IconButton(
+                  onPressed: () {
+                    Navigator.push(context, MaterialPageRoute(builder: (context) => const ChatScreen()));
+                  },
+                  icon: const Icon(Icons.chat, color: Colors.black),
+                ),
+              ],
+              bottom: (_isLoading || _isRefreshing)
+                  ? PreferredSize(
+                preferredSize: const Size.fromHeight(100),
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 20.0),
+                  child: CircularProgressIndicator(color: Colors.white),
+                ),
+              )
+                  : null,
+            );
+          },
         ),
       ),
       body: Padding(
@@ -378,193 +382,35 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Padding(
-              padding: const EdgeInsets.only(bottom: 16.0),
-              child: Text(
-                "Welcome, ${userEmail}",
-                style: GoogleFonts.poppins(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
             Expanded(
               child: GridView.count(
                 crossAxisCount: 2,
                 crossAxisSpacing: 16.0,
                 mainAxisSpacing: 16.0,
                 children: [
-                  StreamBuilder<QuerySnapshot>(
-                    stream: FirebaseFirestore.instance
-                        .collection('todos')
-                        .where('assignedTo', isEqualTo: userEmail)
-                        .where('isDone', isEqualTo: true)
-                        .snapshots(),
-                    builder: (context, snapshot) {
-                      final completedCount = snapshot.hasData ? snapshot.data!.docs.length : 0;
-
-                      return GestureDetector(
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => CompletedTaskScreen(),
-                            ),
-                          );
-                        },
-                        child: Card(
-                          elevation: 4.0,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
-                          child: Container(
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(12.0),
-                              gradient: LinearGradient(
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                                colors: [Colors.green.withOpacity(0.7), Colors.green],
-                              ),
-                            ),
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const Icon(
-                                  Icons.check_circle,
-                                  size: 50.0,
-                                  color: Colors.white,
-                                ),
-                                const SizedBox(height: 8.0),
-                                Text(
-                                  "Completed Tasks",
-                                  style: GoogleFonts.poppins(
-                                    fontSize: 16.0,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white,
-                                  ),
-                                  textAlign: TextAlign.center,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      );
-                    },
+                  _buildTaskCard(
+                    context,
+                    title: "Completed Tasks",
+                    icon: Icons.check_circle,
+                    gradientColors: [Colors.green.withOpacity(0.7), Colors.green],
+                    taskScreen: CompletedTaskScreen(),
+                    query: FirebaseFirestore.instance.collection('todos').where('assignedTo', isEqualTo: userEmail).where('isDone', isEqualTo: true),
                   ),
-                  StreamBuilder<QuerySnapshot>(
-                    stream: FirebaseFirestore.instance
-                        .collection('todos')
-                        .where('assignedTo', isEqualTo: userEmail)
-                        .where('isDone', isEqualTo: false)
-                        .where('dueDate', isLessThan: Timestamp.now())
-                        .snapshots(),
-                    builder: (context, snapshot) {
-                      final overdueCount = snapshot.hasData ? snapshot.data!.docs.length : 0;
-
-                      return GestureDetector(
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => OverdueTaskScreen(),
-                            ),
-                          );
-                        },
-                        child: Card(
-                          elevation: 4.0,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12.0),
-                          ),
-                          child: Container(
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(12.0),
-                              gradient: LinearGradient(
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                                colors: [
-                                  Colors.red.withOpacity(0.7),
-                                  Colors.red,
-                                ],
-                              ),
-                            ),
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const Icon(
-                                  Icons.warning,
-                                  size: 50.0,
-                                  color: Colors.white,
-                                ),
-                                const SizedBox(height: 8.0),
-                                Text(
-                                  "Overdue Tasks",
-                                  style: GoogleFonts.poppins(
-                                    fontSize: 16.0,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white,
-                                  ),
-                                  textAlign: TextAlign.center,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      );
-                    },
+                  _buildTaskCard(
+                    context,
+                    title: "Overdue Tasks",
+                    icon: Icons.warning,
+                    gradientColors: [Colors.red.withOpacity(0.7), Colors.red],
+                    taskScreen: OverdueTaskScreen(),
+                    query: FirebaseFirestore.instance.collection('todos').where('assignedTo', isEqualTo: userEmail).where('isDone', isEqualTo: false).where('dueDate', isLessThan: Timestamp.now()),
                   ),
-                  StreamBuilder<QuerySnapshot>(
-                    stream: FirebaseFirestore.instance
-                        .collection('todos')
-                        .where('assignedTo', isEqualTo: userEmail)
-                        .where('isDone', isEqualTo: false)
-                        .where('status', isEqualTo: 'pending')
-                        .snapshots(),
-                    builder: (context, snapshot) {
-                      final pendingCount = snapshot.hasData ? snapshot.data!.docs.length : 0;
-
-                      return GestureDetector(
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => PendingTaskScreen(),
-                            ),
-                          );
-                        },
-                        child: Card(
-                          elevation: 4.0,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
-                          child: Container(
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(12.0),
-                              gradient: LinearGradient(
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                                colors: [Colors.orange.withOpacity(0.7), Colors.orange],
-                              ),
-                            ),
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const Icon(
-                                  Icons.pending_actions,
-                                  size: 50.0,
-                                  color: Colors.white,
-                                ),
-                                const SizedBox(height: 8.0),
-                                Text(
-                                  "Pending Tasks",
-                                  style: GoogleFonts.poppins(
-                                    fontSize: 16.0,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white,
-                                  ),
-                                  textAlign: TextAlign.center,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      );
-                    },
+                  _buildTaskCard(
+                    context,
+                    title: "Pending Tasks",
+                    icon: Icons.pending_actions,
+                    gradientColors: [Colors.orange.withOpacity(0.7), Colors.orange],
+                    taskScreen: PendingTaskScreen(),
+                    query: FirebaseFirestore.instance.collection('todos').where('assignedTo', isEqualTo: userEmail).where('isDone', isEqualTo: false).where('status', isEqualTo: 'pending'),
                   ),
                 ],
               ),
@@ -577,6 +423,201 @@ class _HomeScreenState extends State<HomeScreen> {
         backgroundColor: peachColor,
         child: const Icon(Icons.add, color: Colors.black),
       ),
+    );
+  }
+
+  // Widget build(BuildContext context) {
+  //   User? user = FirebaseAuth.instance.currentUser;
+  //   String userEmail = user?.email ?? '';
+  //   return Scaffold(
+  //     appBar: PreferredSize(
+  //       preferredSize: Size.fromHeight((_isLoading || _isRefreshing) ? 150 : 50),
+  //       child: AppBar(
+  //         backgroundColor: peachColor,
+  //         shape: const RoundedRectangleBorder(
+  //           borderRadius: BorderRadius.vertical(
+  //             bottom: Radius.circular(30),
+  //           ),
+  //         ),
+  //         title: Text(
+  //           "Task Categories",
+  //           style: GoogleFonts.poppins(
+  //             fontSize: 15,
+  //             fontWeight: FontWeight.bold,
+  //             color: Colors.black,
+  //           ),
+  //         ),
+  //         centerTitle: true,
+  //         actions: [
+  //           IconButton(
+  //             onPressed: () {
+  //               Navigator.push(
+  //                 context,
+  //                 MaterialPageRoute(builder: (context) => const ProfileScreen()),
+  //               );
+  //             },
+  //             icon: const Icon(Icons.person, color: Colors.black),
+  //           ),
+  //           IconButton(
+  //             onPressed: () async {
+  //               await AuthService().signOut();
+  //               Navigator.pushReplacement(
+  //                 context,
+  //                 MaterialPageRoute(builder: (context) => const LoginScreen()),
+  //               );
+  //             },
+  //             icon: const Icon(Icons.logout_rounded, color: Colors.black),
+  //           ),
+  //         ],
+  //         bottom: (_isLoading || _isRefreshing)
+  //             ? PreferredSize(
+  //           preferredSize: const Size.fromHeight(100),
+  //           child: Padding(
+  //             padding: const EdgeInsets.only(bottom: 20.0),
+  //             child: CircularProgressIndicator(
+  //               color: Colors.white,
+  //             ),
+  //           ),
+  //         )
+  //             : null,
+  //       ),
+  //     ),
+  //     body: Padding(
+  //       padding: const EdgeInsets.all(16.0),
+  //       child: Column(
+  //         crossAxisAlignment: CrossAxisAlignment.start,
+  //         children: [
+  //           StreamBuilder<DocumentSnapshot>(
+  //             stream: FirebaseFirestore.instance
+  //                 .collection('users')
+  //                 .doc(user?.uid)
+  //                 .snapshots(),
+  //             builder: (context, snapshot) {
+  //               if (snapshot.connectionState == ConnectionState.waiting) {
+  //                 return CircularProgressIndicator();
+  //               }
+  //               if (!snapshot.hasData || !snapshot.data!.exists) {
+  //                 return Text("User data not found.");
+  //               }
+  //               var userData = snapshot.data!;
+  //               String userFirstName = userData['firstName'] ?? 'User';
+  //               String userRole = userData['role'] ?? 'No role assigned';
+  //               return Padding(
+  //                 padding: const EdgeInsets.only(bottom: 16.0),
+  //                 child: Text(
+  //                   "Welcome, $userFirstName ($userRole)\n$userEmail",
+  //                   style: GoogleFonts.poppins(
+  //                     fontSize: 12,
+  //                     fontWeight: FontWeight.bold,
+  //                   ),
+  //                 ),
+  //               );
+  //             },
+  //           ),
+  //           Expanded(
+  //             child: GridView.count(
+  //               crossAxisCount: 2,
+  //               crossAxisSpacing: 16.0,
+  //               mainAxisSpacing: 16.0,
+  //               children: [
+  //                 _buildTaskCard(
+  //                   context,
+  //                   title: "Completed Tasks",
+  //                   icon: Icons.check_circle,
+  //                   gradientColors: [Colors.green.withOpacity(0.7), Colors.green],
+  //                   taskScreen: CompletedTaskScreen(),
+  //                   query: FirebaseFirestore.instance
+  //                       .collection('todos')
+  //                       .where('assignedTo', isEqualTo: userEmail)
+  //                       .where('isDone', isEqualTo: true),
+  //                 ),
+  //                 _buildTaskCard(
+  //                   context,
+  //                   title: "Overdue Tasks",
+  //                   icon: Icons.warning,
+  //                   gradientColors: [Colors.red.withOpacity(0.7), Colors.red],
+  //                   taskScreen: OverdueTaskScreen(),
+  //                   query: FirebaseFirestore.instance
+  //                       .collection('todos')
+  //                       .where('assignedTo', isEqualTo: userEmail)
+  //                       .where('isDone', isEqualTo: false)
+  //                       .where('dueDate', isLessThan: Timestamp.now()),
+  //                 ),
+  //                 _buildTaskCard(
+  //                   context,
+  //                   title: "Pending Tasks",
+  //                   icon: Icons.pending_actions,
+  //                   gradientColors: [Colors.orange.withOpacity(0.7), Colors.orange],
+  //                   taskScreen: PendingTaskScreen(),
+  //                   query: FirebaseFirestore.instance
+  //                       .collection('todos')
+  //                       .where('assignedTo', isEqualTo: userEmail)
+  //                       .where('isDone', isEqualTo: false)
+  //                       .where('status', isEqualTo: 'pending'),
+  //                 ),
+  //               ],
+  //             ),
+  //           ),
+  //         ],
+  //       ),
+  //     ),
+  //     floatingActionButton: FloatingActionButton(
+  //       onPressed: () => showTaskDialog(),
+  //       backgroundColor: peachColor,
+  //       child: const Icon(Icons.add, color: Colors.black),
+  //     ),
+  //   );
+  // }
+  Widget _buildTaskCard(
+      BuildContext context, {
+        required String title,
+        required IconData icon,
+        required List<Color> gradientColors,
+        required Widget taskScreen,
+        required Query query,
+      }) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: query.snapshots(),
+      builder: (context, snapshot) {
+        return GestureDetector(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => taskScreen),
+            );
+          },
+          child: Card(
+            elevation: 4.0,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12.0),
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: gradientColors,
+                ),
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(icon, size: 50.0, color: Colors.white),
+                  const SizedBox(height: 8.0),
+                  Text(
+                    title,
+                    style: GoogleFonts.poppins(
+                      fontSize: 16.0,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }
