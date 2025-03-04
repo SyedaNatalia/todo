@@ -315,53 +315,104 @@ class _HomeScreenState extends State<HomeScreen> {
     String userEmail = user?.email ?? '';
     return Scaffold(
       appBar: PreferredSize(
-        preferredSize: Size.fromHeight((_isLoading || _isRefreshing) ? 150 : 70),
+        preferredSize: Size.fromHeight((_isLoading || _isRefreshing) ? 150 : 90),
         child: StreamBuilder<DocumentSnapshot>(
           stream: FirebaseFirestore.instance.collection('users').doc(user?.uid).snapshots(),
           builder: (context, snapshot) {
             if (!snapshot.hasData || !snapshot.data!.exists) {
-              return AppBar(
-                backgroundColor: peachColor,
-                title: Text("Task Categories", style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black)),
-                centerTitle: true,
-              );
+              return const SizedBox.shrink(); // Return an empty widget if no data
             }
+
             var userData = snapshot.data!;
             String userFirstName = userData['firstName'] ?? 'User';
             String userRole = userData['role'] ?? 'No role assigned';
+            // String userProfileImageUrl = userData['profileImageUrl'] ?? '';
 
             return AppBar(
               backgroundColor: peachColor,
               shape: const RoundedRectangleBorder(
                 borderRadius: BorderRadius.vertical(bottom: Radius.circular(30)),
               ),
+              leading: Padding(
+                padding: const EdgeInsets.only(left: 12.0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min, // Keeps items compact
+                  children: [
+                    GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const ProfileScreen()),
+                        );
+                      },
+                      child: CircleAvatar(
+                        radius: 20, // Adjust avatar size
+                        backgroundColor: Colors.grey.shade300,
+                        // backgroundImage: userProfileImageUrl.isNotEmpty
+                        //     ? NetworkImage(userProfileImageUrl) // Load from Firebase
+                        //     : const AssetImage("assets/images/default_avatar.png") as ImageProvider,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
               title: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text("Welcome,$userFirstName", style: GoogleFonts.poppins(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.black)),
-                  Text("$userRole", style: GoogleFonts.poppins(fontSize: 8, color: Colors.black)),
-                  Text(userEmail, style: GoogleFonts.poppins(fontSize: 6, color: Colors.black)),
+                  Text(
+                    "Task Categories",
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black,
+                    ),
+                  ),
                 ],
+              ),
+              centerTitle: true,
+              flexibleSpace: Padding(
+                padding: const EdgeInsets.only(left: 12.0, top: 80),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      userFirstName,
+                      style: GoogleFonts.poppins(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black,
+                      ),
+                    ),
+                    Text(
+                      userRole,
+                      style: GoogleFonts.poppins(
+                        fontSize: 8,
+                        color: Colors.black,
+                      ),
+                    ),
+                  ],
+                ),
               ),
               actions: [
                 IconButton(
                   onPressed: () {
-                    Navigator.push(context, MaterialPageRoute(builder: (context) => const ProfileScreen()));
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const ChatScreen()),
+                    );
                   },
-                  icon: const Icon(Icons.person, color: Colors.black),
+                  icon: const Icon(Icons.chat, color: Colors.black),
                 ),
                 IconButton(
                   onPressed: () async {
                     await AuthService().signOut();
-                    Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const LoginScreen()));
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(builder: (context) => const LoginScreen()),
+                    );
                   },
                   icon: const Icon(Icons.logout_rounded, color: Colors.black),
-                ),
-                IconButton(
-                  onPressed: () {
-                    Navigator.push(context, MaterialPageRoute(builder: (context) => const ChatScreen()));
-                  },
-                  icon: const Icon(Icons.chat, color: Colors.black),
                 ),
               ],
               bottom: (_isLoading || _isRefreshing)
@@ -425,149 +476,6 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
-
-  // Widget build(BuildContext context) {
-  //   User? user = FirebaseAuth.instance.currentUser;
-  //   String userEmail = user?.email ?? '';
-  //   return Scaffold(
-  //     appBar: PreferredSize(
-  //       preferredSize: Size.fromHeight((_isLoading || _isRefreshing) ? 150 : 50),
-  //       child: AppBar(
-  //         backgroundColor: peachColor,
-  //         shape: const RoundedRectangleBorder(
-  //           borderRadius: BorderRadius.vertical(
-  //             bottom: Radius.circular(30),
-  //           ),
-  //         ),
-  //         title: Text(
-  //           "Task Categories",
-  //           style: GoogleFonts.poppins(
-  //             fontSize: 15,
-  //             fontWeight: FontWeight.bold,
-  //             color: Colors.black,
-  //           ),
-  //         ),
-  //         centerTitle: true,
-  //         actions: [
-  //           IconButton(
-  //             onPressed: () {
-  //               Navigator.push(
-  //                 context,
-  //                 MaterialPageRoute(builder: (context) => const ProfileScreen()),
-  //               );
-  //             },
-  //             icon: const Icon(Icons.person, color: Colors.black),
-  //           ),
-  //           IconButton(
-  //             onPressed: () async {
-  //               await AuthService().signOut();
-  //               Navigator.pushReplacement(
-  //                 context,
-  //                 MaterialPageRoute(builder: (context) => const LoginScreen()),
-  //               );
-  //             },
-  //             icon: const Icon(Icons.logout_rounded, color: Colors.black),
-  //           ),
-  //         ],
-  //         bottom: (_isLoading || _isRefreshing)
-  //             ? PreferredSize(
-  //           preferredSize: const Size.fromHeight(100),
-  //           child: Padding(
-  //             padding: const EdgeInsets.only(bottom: 20.0),
-  //             child: CircularProgressIndicator(
-  //               color: Colors.white,
-  //             ),
-  //           ),
-  //         )
-  //             : null,
-  //       ),
-  //     ),
-  //     body: Padding(
-  //       padding: const EdgeInsets.all(16.0),
-  //       child: Column(
-  //         crossAxisAlignment: CrossAxisAlignment.start,
-  //         children: [
-  //           StreamBuilder<DocumentSnapshot>(
-  //             stream: FirebaseFirestore.instance
-  //                 .collection('users')
-  //                 .doc(user?.uid)
-  //                 .snapshots(),
-  //             builder: (context, snapshot) {
-  //               if (snapshot.connectionState == ConnectionState.waiting) {
-  //                 return CircularProgressIndicator();
-  //               }
-  //               if (!snapshot.hasData || !snapshot.data!.exists) {
-  //                 return Text("User data not found.");
-  //               }
-  //               var userData = snapshot.data!;
-  //               String userFirstName = userData['firstName'] ?? 'User';
-  //               String userRole = userData['role'] ?? 'No role assigned';
-  //               return Padding(
-  //                 padding: const EdgeInsets.only(bottom: 16.0),
-  //                 child: Text(
-  //                   "Welcome, $userFirstName ($userRole)\n$userEmail",
-  //                   style: GoogleFonts.poppins(
-  //                     fontSize: 12,
-  //                     fontWeight: FontWeight.bold,
-  //                   ),
-  //                 ),
-  //               );
-  //             },
-  //           ),
-  //           Expanded(
-  //             child: GridView.count(
-  //               crossAxisCount: 2,
-  //               crossAxisSpacing: 16.0,
-  //               mainAxisSpacing: 16.0,
-  //               children: [
-  //                 _buildTaskCard(
-  //                   context,
-  //                   title: "Completed Tasks",
-  //                   icon: Icons.check_circle,
-  //                   gradientColors: [Colors.green.withOpacity(0.7), Colors.green],
-  //                   taskScreen: CompletedTaskScreen(),
-  //                   query: FirebaseFirestore.instance
-  //                       .collection('todos')
-  //                       .where('assignedTo', isEqualTo: userEmail)
-  //                       .where('isDone', isEqualTo: true),
-  //                 ),
-  //                 _buildTaskCard(
-  //                   context,
-  //                   title: "Overdue Tasks",
-  //                   icon: Icons.warning,
-  //                   gradientColors: [Colors.red.withOpacity(0.7), Colors.red],
-  //                   taskScreen: OverdueTaskScreen(),
-  //                   query: FirebaseFirestore.instance
-  //                       .collection('todos')
-  //                       .where('assignedTo', isEqualTo: userEmail)
-  //                       .where('isDone', isEqualTo: false)
-  //                       .where('dueDate', isLessThan: Timestamp.now()),
-  //                 ),
-  //                 _buildTaskCard(
-  //                   context,
-  //                   title: "Pending Tasks",
-  //                   icon: Icons.pending_actions,
-  //                   gradientColors: [Colors.orange.withOpacity(0.7), Colors.orange],
-  //                   taskScreen: PendingTaskScreen(),
-  //                   query: FirebaseFirestore.instance
-  //                       .collection('todos')
-  //                       .where('assignedTo', isEqualTo: userEmail)
-  //                       .where('isDone', isEqualTo: false)
-  //                       .where('status', isEqualTo: 'pending'),
-  //                 ),
-  //               ],
-  //             ),
-  //           ),
-  //         ],
-  //       ),
-  //     ),
-  //     floatingActionButton: FloatingActionButton(
-  //       onPressed: () => showTaskDialog(),
-  //       backgroundColor: peachColor,
-  //       child: const Icon(Icons.add, color: Colors.black),
-  //     ),
-  //   );
-  // }
   Widget _buildTaskCard(
       BuildContext context, {
         required String title,
