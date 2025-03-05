@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:new_project/screens/chat_screen.dart';
 
 class CompletedTaskScreen extends StatefulWidget {
   const CompletedTaskScreen({Key? key}) : super(key: key);
@@ -333,125 +334,87 @@ class _CompletedTaskScreenState extends State<CompletedTaskScreen> {
             ),
           ),
           Expanded(
-            child: FutureBuilder<DocumentSnapshot>(
-              future: FirebaseFirestore.instance
-                  .collection('users')
-                  .doc(FirebaseAuth.instance.currentUser?.uid)
-                  .get(),
-              builder: (context, snapshot) {
-                if (!snapshot.hasData || !snapshot.data!.exists) {
-                  return Center(child: CircularProgressIndicator());
-                }
-                String userRole = snapshot.data!.get('role') ?? 'User';
-                return ListView.builder(
-                  itemCount: tasks.length,
-                  itemBuilder: (context, index) {
-                    final task = tasks[index];
-                    final taskId = task.id;
-                    final taskData = task.data() as Map<String, dynamic>;
-                    final taskTitle = taskData['task'];
-                    final assignedTo = taskData['assignedTo'];
-                    final completedAt = taskData['updatedAt'] as Timestamp?;
-                    return Dismissible(
-                      key: Key(taskId),
-                      direction: userRole == "Manager"
-                          ? DismissDirection.endToStart
-                          : DismissDirection.none,
-                      background: Container(
-                        color: Colors.red[400],
-                        alignment: Alignment.centerRight,
-                        padding: const EdgeInsets.only(right: 20),
-                        child: const Icon(
-                          Icons.delete,
-                          color: Colors.white,
-                        ),
+            child: ListView.builder(
+              itemCount: tasks.length,
+              itemBuilder: (context, index) {
+                final task = tasks[index];
+                final taskId = task.id;
+                final taskData = task.data() as Map<String, dynamic>;
+                final taskTitle = taskData['task'] ?? 'Unknown Task';
+                final assignedTo = taskData['assignedTo'] ?? 'Unknown';
+                final completedAt = taskData['updatedAt'] as Timestamp?;
+
+                final assignedById = taskData['assignedById'] ?? '';
+                final assignedByEmail = taskData['assignedByEmail'] ?? 'No Email';
+
+                return Card(
+                  margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                  color: const Color(0xFFE8F5E9),
+                  elevation: 2,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(15),
+                  ),
+                  child: ListTile(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    leading: const Icon(Icons.check_circle, color: Colors.green, size: 30),
+                    title: Text(
+                      taskTitle,
+                      style: GoogleFonts.nunito(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black87,
                       ),
-                      confirmDismiss: userRole == "Manager"
-                          ? (direction) async {
-                        return await showDialog(
-                          context: context,
-                          builder: (BuildContext context) {
-                            return AlertDialog(
-                              title: Text(
-                                'Delete Task',
-                                style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
-                              ),
-                              content: Text(
-                                'Are you sure you want to delete this task?',
-                                style: GoogleFonts.nunito(),
-                              ),
-                              actions: <Widget>[
-                                TextButton(
-                                  onPressed: () => Navigator.of(context).pop(false),
-                                  child: Text(
-                                    'Cancel',
-                                    style: GoogleFonts.poppins(color: Colors.grey[700]),
+                    ),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Assigned to: $assignedTo',
+                          style: GoogleFonts.nunito(fontSize: 14, color: Colors.black54),
+                        ),
+                        if (completedAt != null)
+                          Text(
+                            'Completed: ${DateFormat('MMM d, yyyy').format(completedAt.toDate())}',
+                            style: GoogleFonts.nunito(fontSize: 14, color: Colors.green[700]),
+                          ),
+                      ],
+                    ),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.message, color: Colors.black),
+                          onPressed: () {
+                            if (assignedById.isNotEmpty) {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => ChatScreen(
+                                    receiverId: assignedById,
+                                    receiverEmail: assignedByEmail,
+                                    taskId: taskId,
                                   ),
                                 ),
-                                TextButton(
-                                  onPressed: () => Navigator.of(context).pop(true),
-                                  child: Text(
-                                    'Delete',
-                                    style: GoogleFonts.poppins(color: Colors.red),
-                                  ),
+                              );
+                            } else {
+                              ScaffoldMessenger.of(context).sho wSnackBar(
+                                SnackBar(
+                                  content: Text('Error: Task creator info missing'),
+                                  backgroundColor: Colors.red,
                                 ),
-                              ],
-                            );
+                              );
+                            }
                           },
-                        );
-                      }
-                          : null,
-                      onDismissed: (direction) async {
-                        await FirebaseFirestore.instance.collection('todos').doc(taskId).delete();
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('Task deleted'),
-                            backgroundColor: Colors.green,
-                            duration: const Duration(seconds: 2),
-                          ),
-                        );
-                      },
-                      child: Card(
-                        margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-                        color: const Color(0xFFE8F5E9),
-                        elevation: 2,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(15),
                         ),
-                        child: ListTile(
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                          leading: const Icon(Icons.check_circle, color: Colors.green, size: 30),
-                          title: Text(
-                            taskTitle,
-                            style: GoogleFonts.nunito(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.black87,
-                            ),
-                          ),
-                          subtitle: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Assigned to: $assignedTo',
-                                style: GoogleFonts.nunito(fontSize: 14, color: Colors.black54),
-                              ),
-                              if (completedAt != null)
-                                Text(
-                                  'Completed: ${DateFormat('MMM d, yyyy').format(completedAt.toDate())}',
-                                  style: GoogleFonts.nunito(fontSize: 14, color: Colors.green[700]),
-                                ),
-                            ],
-                          ),
-                          trailing: IconButton(
-                            icon: const Icon(Icons.info_outline, color: Colors.black54),
-                            onPressed: () => _showTaskDetailsBottomSheet(taskData),
-                          ),
-                          onTap: () => _showTaskDetailsBottomSheet(taskData),
+                        const SizedBox(width: 8),
+                        IconButton(
+                          icon: const Icon(Icons.info_outline, color: Colors.black54),
+                          onPressed: () => _showTaskDetailsBottomSheet(taskData),
                         ),
-                      ),
-                    );
-                  },
+                      ],
+                    ),
+                    onTap: () => _showTaskDetailsBottomSheet(taskData),
+                  ),
                 );
               },
             ),

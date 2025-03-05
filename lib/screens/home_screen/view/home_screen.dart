@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
-import 'package:new_project/screens/chat_screen.dart';
+import 'package:new_project/screens/chat_home.dart';
 import 'package:new_project/screens/completed_tak/view/completed_task.dart';
 import 'package:new_project/screens/login_screen.dart';
 import 'package:new_project/screens/overdue_task.dart';
@@ -336,7 +336,7 @@ class _HomeScreenState extends State<HomeScreen> {
               leading: Padding(
                 padding: const EdgeInsets.only(left: 12.0),
                 child: Column(
-                  mainAxisSize: MainAxisSize.min, // Keeps items compact
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     GestureDetector(
                       onTap: () {
@@ -346,7 +346,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         );
                       },
                       child: CircleAvatar(
-                        radius: 20, // Adjust avatar size
+                        radius: 20,
                         backgroundColor: Colors.grey.shade300,
                         // backgroundImage: userProfileImageUrl.isNotEmpty
                         //     ? NetworkImage(userProfileImageUrl) // Load from Firebase
@@ -399,7 +399,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   onPressed: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (context) => const ChatScreen()),
+                      MaterialPageRoute(builder: (context) =>  ChatHomeScreen()),
                     );
                   },
                   icon: const Icon(Icons.chat, color: Colors.black),
@@ -449,19 +449,19 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   _buildTaskCard(
                     context,
-                    title: "Overdue Tasks",
-                    icon: Icons.warning,
-                    gradientColors: [Colors.red.withOpacity(0.7), Colors.red],
-                    taskScreen: OverdueTaskScreen(),
-                    query: FirebaseFirestore.instance.collection('todos').where('assignedTo', isEqualTo: userEmail).where('isDone', isEqualTo: false).where('dueDate', isLessThan: Timestamp.now()),
-                  ),
-                  _buildTaskCard(
-                    context,
                     title: "Pending Tasks",
                     icon: Icons.pending_actions,
                     gradientColors: [Colors.orange.withOpacity(0.7), Colors.orange],
                     taskScreen: PendingTaskScreen(),
                     query: FirebaseFirestore.instance.collection('todos').where('assignedTo', isEqualTo: userEmail).where('isDone', isEqualTo: false).where('status', isEqualTo: 'pending'),
+                  ),
+                  _buildTaskCard(
+                    context,
+                    title: "Overdue Tasks",
+                    icon: Icons.warning,
+                    gradientColors: [Colors.red.withOpacity(0.7), Colors.red],
+                    taskScreen: OverdueTaskScreen(),
+                    query: FirebaseFirestore.instance.collection('todos').where('assignedTo', isEqualTo: userEmail).where('isDone', isEqualTo: false).where('dueDate', isLessThan: Timestamp.now()),
                   ),
                 ],
               ),

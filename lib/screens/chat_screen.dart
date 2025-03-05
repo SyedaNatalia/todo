@@ -3,7 +3,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 class ChatScreen extends StatefulWidget {
-  const ChatScreen({Key? key}) : super(key: key);
+  final String receiverId;
+  final String receiverEmail;
+
+  const ChatScreen({Key? key, required this.receiverId, required this.receiverEmail, required taskId}) : super(key: key);
 
   @override
   _ChatScreenState createState() => _ChatScreenState();
@@ -20,9 +23,11 @@ class _ChatScreenState extends State<ChatScreen> {
       String userEmail = _auth.currentUser?.email ?? 'Unknown';
 
       await _firestore.collection('chats').add({
-        'text': _messageController.text,
+        'text': _messageController.text.trim(),
         'senderId': userId,
+        'receiverId': widget.receiverId,
         'senderEmail': userEmail,
+        'receiverEmail': widget.receiverEmail,
         'timestamp': FieldValue.serverTimestamp(),
       });
 
@@ -32,31 +37,39 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   Widget build(BuildContext context) {
+    String userId = _auth.currentUser?.uid ?? '';
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Chat"),
-        backgroundColor: Colors.pinkAccent,
+        title: Text(widget.receiverEmail),
+        backgroundColor: Colors.blueAccent,
       ),
       body: Column(
         children: [
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
-              stream: _firestore.collection('chats').orderBy('timestamp', descending: true).snapshots(),
+              stream: _firestore
+                  .collection('chats')
+                  .orderBy('timestamp', descending: false)
+                  .snapshots(),
               builder: (context, snapshot) {
                 if (!snapshot.hasData) {
                   return const Center(child: CircularProgressIndicator());
                 }
 
-                var messages = snapshot.data!.docs;
+                var messages = snapshot.data!.docs.where((doc) {
+                  var data = doc.data() as Map<String, dynamic>;
+                  return (data['senderId'] == userId && data['receiverId'] == widget.receiverId) ||
+                      (data['senderId'] == widget.receiverId && data['receiverId'] == userId);
+                }).toList();
 
                 return ListView.builder(
-                  reverse: true,
                   itemCount: messages.length,
                   itemBuilder: (context, index) {
                     var message = messages[index];
                     var messageText = message['text'];
-                    var senderEmail = message['senderEmail'];
-                    bool isMe = senderEmail == _auth.currentUser?.email;
+                    var senderId = message['senderId'];
+                    bool isMe = senderId == userId;
 
                     return Align(
                       alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
@@ -70,9 +83,15 @@ class _ChatScreenState extends State<ChatScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(senderEmail, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                            Text(
+                              isMe ? 'You' : widget.receiverEmail,
+                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
+                            ),
                             const SizedBox(height: 5),
-                            Text(messageText, style: const TextStyle(fontSize: 16)),
+                            Text(
+                              messageText,
+                              style: TextStyle(fontSize: 16, color: isMe ? Colors.white : Colors.black),
+                            ),
                           ],
                         ),
                       ),
@@ -89,9 +108,9 @@ class _ChatScreenState extends State<ChatScreen> {
                 Expanded(
                   child: TextField(
                     controller: _messageController,
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       hintText: "Enter message...",
-                      border: OutlineInputBorder(),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                     ),
                   ),
                 ),
