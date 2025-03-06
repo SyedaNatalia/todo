@@ -74,7 +74,7 @@ class ChatHomeScreen extends StatelessWidget {
                           builder: (context) => ChatScreen(
                             receiverId: senderId,
                             receiverEmail: nameSnapshot.data!,
-                            taskId: taskId,
+                            taskId: 'assignedById', taskTitle: 'assignedByEmail',
                           ),
                         ),
                       );

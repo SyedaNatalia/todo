@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:new_project/screens/chat_screen.dart';
 
 class PendingTaskScreen extends StatefulWidget {
   const PendingTaskScreen({Key? key}) : super(key: key);
@@ -490,6 +491,21 @@ class _PendingTaskScreenState extends State<PendingTaskScreen> {
                           trailing: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
+                              IconButton(
+                                icon: const Icon(Icons.message, color: Colors.black),
+                                onPressed: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => ChatScreen(
+                                        receiverId: taskData['assignedById'] ?? '',
+                                        receiverEmail: taskData['assignedByEmail'] ?? 'No Email',
+                                        taskId: 'assignedById',taskTitle: 'assignedByEmail',
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
                               IconButton(
                                 icon: const Icon(Icons.check, color: Colors.green),
                                 onPressed: () async {

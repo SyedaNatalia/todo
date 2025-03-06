@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:new_project/screens/chat_screen.dart';
 
 class OverdueTaskScreen extends StatefulWidget {
   const OverdueTaskScreen({Key? key}) : super(key: key);
@@ -622,6 +623,21 @@ class _OverdueTaskScreenState extends State<OverdueTaskScreen> {
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
+            IconButton(
+              icon: const Icon(Icons.message, color: Colors.black),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => ChatScreen(
+                      receiverId: taskDataWithId['assignedById'] ?? '',
+                      receiverEmail: taskDataWithId['assignedByEmail'] ?? 'No Email',
+                      taskId: 'assignedById', taskTitle: 'assignedByEmail',
+                    ),
+                  ),
+                );
+              },
+            ),
             IconButton(
               icon: const Icon(Icons.check, color: Colors.green),
               onPressed: () => _markTaskAsComplete(context, taskId),
