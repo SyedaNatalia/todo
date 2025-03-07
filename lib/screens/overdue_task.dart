@@ -630,6 +630,7 @@ class _OverdueTaskScreenState extends State<OverdueTaskScreen> {
                   context,
                   MaterialPageRoute(
                     builder: (context) => ChatScreen(
+                      todoData: taskDataWithId,
                       receiverId: taskDataWithId['assignedById'] ?? '',
                       receiverEmail: taskDataWithId['assignedByEmail'] ?? 'No Email',
                       taskId: 'assignedById', taskTitle: 'assignedByEmail',

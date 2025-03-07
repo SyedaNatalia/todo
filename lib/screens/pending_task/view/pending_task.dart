@@ -498,6 +498,7 @@ class _PendingTaskScreenState extends State<PendingTaskScreen> {
                                     context,
                                     MaterialPageRoute(
                                       builder: (context) => ChatScreen(
+                                        todoData: taskDataWithId,
                                         receiverId: taskData['assignedById'] ?? '',
                                         receiverEmail: taskData['assignedByEmail'] ?? 'No Email',
                                         taskId: 'assignedById',taskTitle: 'assignedByEmail',

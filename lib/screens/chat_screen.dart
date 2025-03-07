@@ -8,12 +8,14 @@ class ChatScreen extends StatefulWidget {
   final String receiverEmail;
   final String? taskId;
   final String? taskTitle;
+  final Map<String, dynamic> todoData;
 
   const ChatScreen({Key? key,
     required this.receiverId,
     required this.receiverEmail,
     this.taskId,
-    this.taskTitle,}) : super(key: key);
+    this.taskTitle,
+  required this.todoData}) : super(key: key);
 
   @override
   _ChatScreenState createState() => _ChatScreenState();
@@ -33,11 +35,9 @@ class _ChatScreenState extends State<ChatScreen> {
       await _firestore.collection('chats').add({
         'text': _messageController.text.trim(),
         'senderId': userId,
-        // 'receiverId': widget.receiverId,
-        'receiverId': userId,
+        'receiverId': widget.todoData['assignedBy'],
         'senderEmail': userEmail,
-         // 'receiverEmail': widget.receiverEmail,
-        'receiverEmail': userEmail,
+        'receiverEmail': widget.todoData['assignedBy'],
         'timestamp': FieldValue.serverTimestamp(),
 
         if (widget.taskId != null) 'taskId': widget.taskId,
@@ -61,13 +61,14 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   Widget build(BuildContext context) {
     String userId = _auth.currentUser?.uid ?? '';
+    print("Todo data ${widget.todoData}");
 
     return Scaffold(
       appBar: AppBar(
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(widget.receiverEmail),
+            Text(widget.todoData['assignedBy']),
             if (widget.taskTitle != null)
               Text(
                 'Re: ${widget.taskTitle}',
@@ -109,8 +110,11 @@ class _ChatScreenState extends State<ChatScreen> {
 
                 var messages = snapshot.data!.docs.where((doc) {
                   var data = doc.data() as Map<String, dynamic>;
-                  return (data['senderId'] == userId && data['receiverId'] == widget.receiverId) ||
-                      (data['senderId'] == widget.receiverId && data['receiverId'] == userId);
+
+                  bool isPairMatch = (data['senderId'] == userId && data['receiverId'] == widget.todoData['assignedBy']) ||
+                      (data['senderId'] == widget.todoData['assignedBy'] && data['receiverId'] == userId);
+
+                  return isPairMatch;
                 }).toList();
 
                 return ListView.builder(
@@ -123,14 +127,11 @@ class _ChatScreenState extends State<ChatScreen> {
                     var senderEmail = messageData['senderEmail'] as String? ?? 'Unknown';
                     var timestamp = messageData['timestamp'] as Timestamp?;
 
+                    // Check if the current user is the sender
                     bool isMe = senderId == userId;
                     String timeString = timestamp == null
                         ? 'Sending...'
                         : DateFormat('h:mm a').format(timestamp.toDate());
-                    // var message = messages[index];
-                    // var messageText = message['text'];
-                    // var senderId = message['senderId'];
-                    // bool isMe = senderId == userId;
 
                     return Align(
                       alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
@@ -146,13 +147,26 @@ class _ChatScreenState extends State<ChatScreen> {
                           children: [
                             Text(
                               isMe ? 'You' : senderEmail.split('@').first,
-                              // isMe ? 'You' : widget.receiverEmail,
-                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
+                              style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: isMe ? Colors.white : Colors.black87
+                              ),
                             ),
                             const SizedBox(height: 5),
                             Text(
                               messageText,
                               style: TextStyle(fontSize: 16, color: isMe ? Colors.white : Colors.black),
+                            ),
+                            Align(
+                              alignment: Alignment.bottomRight,
+                              child: Text(
+                                timeString,
+                                style: TextStyle(
+                                    fontSize: 10,
+                                    color: isMe ? Colors.white70 : Colors.black54
+                                ),
+                              ),
                             ),
                           ],
                         ),
@@ -176,8 +190,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     ),
                   ),
                 ),
-                IconButton(
-                  onPressed: _sendMessage,
+                IconButton( onPressed: _sendMessage,
                   icon: const Icon(Icons.send, color: Colors.blueAccent),
                 ),
               ],
@@ -187,4 +200,128 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
     );
   }
+
+// Widget build(BuildContext context) {
+  //   String userId = _auth.currentUser?.uid ?? '';
+  //   print("Todo data ${widget.todoData}");
+  //
+  //   return Scaffold(
+  //     appBar: AppBar(
+  //       title: Column(
+  //         crossAxisAlignment: CrossAxisAlignment.start,
+  //         children: [
+  //           Text(widget.todoData['assignedBy']),
+  //           if (widget.taskTitle != null)
+  //             Text(
+  //               'Re: ${widget.taskTitle}',
+  //               style: const TextStyle(fontSize: 12, fontWeight: FontWeight.normal),
+  //             ),
+  //         ],
+  //       ),
+  //       backgroundColor: Colors.blueAccent,
+  //     ),
+  //     body: Column(
+  //       children: [
+  //         if (widget.taskTitle != null)
+  //           Container(
+  //             padding: const EdgeInsets.all(10),
+  //             color: Colors.grey.shade100,
+  //             child: Row(
+  //               children: [
+  //                 const Icon(Icons.task_alt, color: Colors.blueAccent),
+  //                 const SizedBox(width: 8),
+  //                 Expanded(
+  //                   child: Text(
+  //                     'Discussing task: ${widget.taskTitle}',
+  //                     style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+  //                   ),
+  //                 ),
+  //               ],
+  //             ),
+  //           ),
+  //         Expanded(
+  //           child: StreamBuilder<QuerySnapshot>(
+  //             stream: _firestore
+  //                 .collection('chats')
+  //                 .orderBy('timestamp', descending: false)
+  //                 .snapshots(),
+  //             builder: (context, snapshot) {
+  //               if (!snapshot.hasData) {
+  //                 return const Center(child: CircularProgressIndicator());
+  //               }
+  //
+  //               var messages = snapshot.data!.docs.where((doc) {
+  //                 var data = doc.data() as Map<String, dynamic>;
+  //                 return (data['senderId'] == userId && data['receiverId'] == widget.todoData['assignedBy']) ||
+  //                     (data['senderId'] == widget.receiverId && data['receiverId'] == widget.todoData['assignedBy']);
+  //               }).toList();
+  //
+  //               return ListView.builder(
+  //                 controller: _scrollController,
+  //                 itemCount: messages.length,
+  //                 itemBuilder: (context, index) {
+  //                   var messageData = messages[index].data() as Map<String, dynamic>;
+  //                   var messageText = messageData['text'] as String;
+  //                   var senderId = messageData['senderId'] as String;
+  //                   var senderEmail = messageData['senderEmail'] as String? ?? 'Unknown';
+  //                   var timestamp = messageData['timestamp'] as Timestamp?;
+  //
+  //                   bool isMe = senderId == userId;
+  //                   String timeString = timestamp == null
+  //                       ? 'Sending...'
+  //                       : DateFormat('h:mm a').format(timestamp.toDate());
+  //
+  //                   return Align(
+  //                     alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+  //                     child: Container(
+  //                       margin: const EdgeInsets.symmetric(vertical: 5, horizontal: 10),
+  //                       padding: const EdgeInsets.all(10),
+  //                       decoration: BoxDecoration(
+  //                         color: isMe ? Colors.blueAccent : Colors.grey.shade300,
+  //                         borderRadius: BorderRadius.circular(10),
+  //                       ),
+  //                       child: Column(
+  //                         crossAxisAlignment: CrossAxisAlignment.start,
+  //                         children: [
+  //                           Text(
+  //                             isMe ? 'You' : senderEmail.split('@').first,
+  //                             style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
+  //                           ),
+  //                           const SizedBox(height: 5),
+  //                           Text(
+  //                             messageText,
+  //                             style: TextStyle(fontSize: 16, color: isMe ? Colors.white : Colors.black),
+  //                           ),
+  //                         ],
+  //                       ),
+  //                     ),
+  //                   );
+  //                 },
+  //               );
+  //             },
+  //           ),
+  //         ),
+  //         Padding(
+  //           padding: const EdgeInsets.all(8.0),
+  //           child: Row(
+  //             children: [
+  //               Expanded(
+  //                 child: TextField(
+  //                   controller: _messageController,
+  //                   decoration: InputDecoration(
+  //                     hintText: "Enter message...",
+  //                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+  //                   ),
+  //                 ),
+  //               ),
+  //               IconButton( onPressed: _sendMessage,
+  //                 icon: const Icon(Icons.send, color: Colors.blueAccent),
+  //               ),
+  //             ],
+  //           ),
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // }
 }

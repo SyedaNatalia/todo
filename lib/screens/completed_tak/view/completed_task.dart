@@ -455,6 +455,7 @@ class _CompletedTaskScreenState extends State<CompletedTaskScreen> {
                                     context,
                                     MaterialPageRoute(
                                       builder: (context) => ChatScreen(
+                                        todoData: taskData,
                                         // receiverId: userRole,
                                         receiverId: taskTitle,
                                         // receiverEmail: assignedTo,

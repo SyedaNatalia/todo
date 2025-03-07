@@ -72,6 +72,7 @@ class ChatHomeScreen extends StatelessWidget {
                         context,
                         MaterialPageRoute(
                           builder: (context) => ChatScreen(
+                            todoData: {},
                             receiverId: senderId,
                             receiverEmail: nameSnapshot.data!,
                             taskId: 'assignedById', taskTitle: 'assignedByEmail',
