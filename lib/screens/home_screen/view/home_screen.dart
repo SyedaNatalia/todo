@@ -142,8 +142,24 @@ class _HomeScreenState extends State<HomeScreen> {
           builder: (context, setState) {
             if (isLoadingUsers) {
               fetchUsers().then((_) {
-                setState(() {});
+                setState(() {
+                });
               });
+              return AlertDialog(
+                backgroundColor: lightPeachColor,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                content: Container(
+                  width: double.maxFinite,
+                  height: 200,
+                  child: Center(
+                    child: CircularProgressIndicator(
+                      color: peachColor,
+                    ),
+                  ),
+                ),
+              );
             }
             return AlertDialog(
               backgroundColor: lightPeachColor,
@@ -173,9 +189,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       autofocus: true,
                     ),
                     SizedBox(height: 16),
-                    isLoadingUsers
-                        ? CircularProgressIndicator(color: peachColor)
-                        : DropdownButtonFormField<String>(
+                    DropdownButtonFormField<String>(
                       value: selectedAssignee,
                       decoration: InputDecoration(
                         labelText: 'Assigned to',
@@ -259,7 +273,8 @@ class _HomeScreenState extends State<HomeScreen> {
                           'status': 'pending',
                         };
                         if (_selectedDueDate != null) {
-                          taskData['dueDate'] = Timestamp.fromDate(_selectedDueDate!);}
+                          taskData['dueDate'] = Timestamp.fromDate(_selectedDueDate!);
+                        }
                         if (taskId != null) {
                           await _firestore.collection('todos').doc(taskId).update(taskData);
                         } else {
@@ -314,55 +329,129 @@ class _HomeScreenState extends State<HomeScreen> {
     User? user = FirebaseAuth.instance.currentUser;
     String userEmail = user?.email ?? '';
     return Scaffold(
+      drawer: Drawer(
+        child: ListView(
+          padding: EdgeInsets.zero,
+          children: [
+            DrawerHeader(
+              decoration: BoxDecoration(color: peachColor),
+              child: Text(
+                'HRM',
+                style: TextStyle(color: Colors.white, fontSize: 24),
+              ),
+            ),
+            ListTile(
+              leading: Icon(Icons.home_outlined),
+              title: Text('Home'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (context) => HomeScreen()),
+                );
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.check_circle_outline),
+              title: Text('Completed Tasks'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => CompletedTaskScreen()),
+                );
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.pending_actions_outlined),
+              title: Text('Pending Tasks'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => PendingTaskScreen()),
+                );
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.warning_amber_outlined),
+              title: Text('Overdue Tasks'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => OverdueTaskScreen()),
+                );
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.person_outline),
+              title: Text('Profile'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => ProfileScreen()),
+                );
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.message_outlined),
+              title: Text('Chat'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => ChatHomeScreen()),
+                );                   },
+            ),
+            ListTile(
+              leading: Icon(Icons.logout_rounded),
+              title: Text('Logout'),
+              onTap: () async {
+                await AuthService().signOut();
+                Navigator.pop(context);
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (context) => LoginScreen()),
+                );                   },
+            ),
+          ],
+        ),
+      ),
       appBar: PreferredSize(
-        preferredSize: Size.fromHeight((_isLoading || _isRefreshing) ? 150 : 90),
+        preferredSize: Size.fromHeight((_isLoading || _isRefreshing) ? 150 : 200),
         child: StreamBuilder<DocumentSnapshot>(
           stream: FirebaseFirestore.instance.collection('users').doc(user?.uid).snapshots(),
           builder: (context, snapshot) {
             if (!snapshot.hasData || !snapshot.data!.exists) {
-              return const SizedBox.shrink(); // Return an empty widget if no data
+              return const SizedBox.shrink();
             }
 
             var userData = snapshot.data!;
             String userFirstName = userData['firstName'] ?? 'User';
             String userRole = userData['role'] ?? 'No role assigned';
-            // String userProfileImageUrl = userData['profileImageUrl'] ?? '';
 
             return AppBar(
               backgroundColor: peachColor,
               shape: const RoundedRectangleBorder(
-                borderRadius: BorderRadius.vertical(bottom: Radius.circular(30)),
+                borderRadius: BorderRadius.vertical(bottom: Radius.circular(35)),
               ),
-              leading: Padding(
-                padding: const EdgeInsets.only(left: 12.0),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    GestureDetector(
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (context) => const ProfileScreen()),
-                        );
-                      },
-                      child: CircleAvatar(
-                        radius: 20,
-                        backgroundColor: Colors.grey.shade300,
-                        // backgroundImage: userProfileImageUrl.isNotEmpty
-                        //     ? NetworkImage(userProfileImageUrl) // Load from Firebase
-                        //     : const AssetImage("assets/images/default_avatar.png") as ImageProvider,
-                      ),
-                    ),
-                  ],
+              leading: Builder(
+                builder: (context) => IconButton(
+                  icon: const Icon(Icons.menu, color: Colors.black),
+                  onPressed: () {
+                    Scaffold.of(context).openDrawer();
+                  },
                 ),
               ),
               title: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    "Task Categories",
+                    "HRM",
                     style: GoogleFonts.poppins(
-                      fontSize: 14,
+                      fontSize: 20,
                       fontWeight: FontWeight.bold,
                       color: Colors.black,
                     ),
@@ -370,28 +459,44 @@ class _HomeScreenState extends State<HomeScreen> {
                 ],
               ),
               centerTitle: true,
-              flexibleSpace: Padding(
-                padding: const EdgeInsets.only(left: 12.0, top: 80),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      userFirstName,
-                      style: GoogleFonts.poppins(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.black,
+              flexibleSpace: Align(
+                alignment: Alignment.bottomLeft,
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 18.0, bottom: 10),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        userFirstName,
+                        style: GoogleFonts.poppins(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.black,
+                        ),
                       ),
-                    ),
-                    Text(
-                      userRole,
-                      style: GoogleFonts.poppins(
-                        fontSize: 8,
-                        color: Colors.black,
+                      Text(
+                        userRole,
+                        style: GoogleFonts.poppins(
+                          fontSize: 8,
+                          color: Colors.black,
+                        ),
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 10),
+                      GestureDetector(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (context) => const ProfileScreen()),
+                          );
+                        },
+                        child: CircleAvatar(
+                          radius: 50,
+                          backgroundColor: Colors.grey.shade300,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
               actions: [
@@ -399,7 +504,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   onPressed: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (context) =>  ChatHomeScreen()),
+                      MaterialPageRoute(builder: (context) => ChatHomeScreen()),
                     );
                   },
                   icon: const Icon(Icons.chat, color: Colors.black),
@@ -415,15 +520,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   icon: const Icon(Icons.logout_rounded, color: Colors.black),
                 ),
               ],
-              bottom: (_isLoading || _isRefreshing)
-                  ? PreferredSize(
-                preferredSize: const Size.fromHeight(100),
-                child: Padding(
-                  padding: const EdgeInsets.only(bottom: 20.0),
-                  child: CircularProgressIndicator(color: Colors.white),
-                ),
-              )
-                  : null,
             );
           },
         ),
@@ -445,7 +541,10 @@ class _HomeScreenState extends State<HomeScreen> {
                     icon: Icons.check_circle,
                     gradientColors: [Colors.green.withOpacity(0.7), Colors.green],
                     taskScreen: CompletedTaskScreen(),
-                    query: FirebaseFirestore.instance.collection('todos').where('assignedTo', isEqualTo: userEmail).where('isDone', isEqualTo: true),
+                    query: FirebaseFirestore.instance
+                        .collection('todos')
+                        .where('assignedTo', isEqualTo: userEmail)
+                        .where('isDone', isEqualTo: true),
                   ),
                   _buildTaskCard(
                     context,
@@ -453,7 +552,11 @@ class _HomeScreenState extends State<HomeScreen> {
                     icon: Icons.pending_actions,
                     gradientColors: [Colors.orange.withOpacity(0.7), Colors.orange],
                     taskScreen: PendingTaskScreen(),
-                    query: FirebaseFirestore.instance.collection('todos').where('assignedTo', isEqualTo: userEmail).where('isDone', isEqualTo: false).where('status', isEqualTo: 'pending'),
+                    query: FirebaseFirestore.instance
+                        .collection('todos')
+                        .where('assignedTo', isEqualTo: userEmail)
+                        .where('isDone', isEqualTo: false)
+                        .where('status', isEqualTo: 'pending'),
                   ),
                   _buildTaskCard(
                     context,
@@ -461,7 +564,11 @@ class _HomeScreenState extends State<HomeScreen> {
                     icon: Icons.warning,
                     gradientColors: [Colors.red.withOpacity(0.7), Colors.red],
                     taskScreen: OverdueTaskScreen(),
-                    query: FirebaseFirestore.instance.collection('todos').where('assignedTo', isEqualTo: userEmail).where('isDone', isEqualTo: false).where('dueDate', isLessThan: Timestamp.now()),
+                    query: FirebaseFirestore.instance
+                        .collection('todos')
+                        .where('assignedTo', isEqualTo: userEmail)
+                        .where('isDone', isEqualTo: false)
+                        .where('dueDate', isLessThan: Timestamp.now()),
                   ),
                 ],
               ),
