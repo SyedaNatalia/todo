@@ -9,6 +9,7 @@ import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
+import 'package:image_picker/image_picker.dart';
 
 class ChatScreen extends StatefulWidget {
   final String receiverId;
@@ -51,6 +52,25 @@ class _ChatScreenState extends State<ChatScreen> {
     _loadLocalVoiceNotes();
   }
 
+  Future<void> _sendImageMessage(String imageUrl) async {
+    String userId = _auth.currentUser?.uid ?? '';
+    String userEmail = _auth.currentUser?.email ?? 'Unknown';
+
+    await _firestore.collection('chats').add({
+      'text': '',
+      'senderId': userId,
+      'receiverId': widget.todoData['assignedBy'],
+      'senderEmail': userEmail,
+      'receiverEmail': widget.todoData['assignedBy'],
+      'timestamp': FieldValue.serverTimestamp(),
+      'messageType': 'image',
+      'imageUrl': imageUrl,
+      if (widget.taskId != null) 'taskId': widget.taskId,
+      if (widget.taskTitle != null) 'taskTitle': widget.taskTitle,
+    });
+
+    _scrollToBottom();
+  }
   Future<void> _loadLocalVoiceNotes() async {
     final prefs = await SharedPreferences.getInstance();
     final String chatId = _getChatId();
@@ -409,7 +429,26 @@ class _ChatScreenState extends State<ChatScreen> {
     seconds = seconds % 60;
     return '$minutes:${seconds.toString().padLeft(2, '0')}';
   }
+  Future<void> pickImageFromGallery() async {
+    final ImagePicker picker = ImagePicker();
+    final XFile? image = await picker.pickImage(source: ImageSource.gallery);
 
+    if (image != null) {
+      processSelectedImage(image);
+    }
+  }
+
+  Future<void> pickImageFromCamera() async {
+    final ImagePicker picker = ImagePicker();
+    final XFile? photo = await picker.pickImage(source: ImageSource.camera);
+
+    if (photo != null) {
+      processSelectedImage(photo);
+    }
+  }
+
+  void processSelectedImage(XFile imageFile) {
+  }
   @override
   Widget build(BuildContext context) {
     String userId = _auth.currentUser?.uid ?? '';
@@ -655,7 +694,66 @@ class _ChatScreenState extends State<ChatScreen> {
                     ),
                   ),
                 ),
+
+                IconButton(
+                  icon: const Icon(Icons.camera_alt, color: Colors.blueAccent),
+                  tooltip: 'Take photo or choose from gallery',
+                  onPressed: () {
+                    showDialog(
+                      context: context,
+                      builder: (BuildContext context) {
+                        return AlertDialog(
+                          title: Text('Choose an option'),
+                          content: SingleChildScrollView(
+                            child: ListBody(
+                              children: [
+                                GestureDetector(
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(8.0),
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.photo_library, color: Colors.blueAccent),
+                                        SizedBox(width: 10),
+                                        Text('Gallery'),
+                                      ],
+                                    ),
+                                  ),
+                                  onTap: () {
+                                    pickImageFromGallery();
+                                    Navigator.of(context).pop();
+                                  },
+                                ),
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 12, bottom: 12),
+                                  child: Divider(height: 1),
+                                ),
+                                GestureDetector(
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(8.0),
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.camera_alt, color: Colors.blueAccent),
+                                        SizedBox(width: 10),
+                                        Text('Camera'),
+                                      ],
+                                    ),
+                                  ),
+                                  onTap: () {
+                                    pickImageFromCamera();
+                                    Navigator.of(context).pop();
+                                  },
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
+
                 const SizedBox(width: 8),
+
                 Expanded(
                   child: TextField(
                     controller: _messageController,
@@ -665,6 +763,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     ),
                   ),
                 ),
+
                 IconButton(
                   onPressed: _sendMessage,
                   icon: const Icon(Icons.send, color: Colors.blueAccent),

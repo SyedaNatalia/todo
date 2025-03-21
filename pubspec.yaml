@@ -46,7 +46,7 @@ dependencies:
   record: ^5.2.1
   audioplayers: ^5.1.0
   path_provider: ^2.0.15
-
+  image_picker: ^1.1.2
 
 
 
