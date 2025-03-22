@@ -10,6 +10,8 @@ import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'package:image_picker/image_picker.dart';
+import 'package:photo_view/photo_view.dart';
+
 
 class ChatScreen extends StatefulWidget {
   final String receiverId;
@@ -71,6 +73,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
     _scrollToBottom();
   }
+
   Future<void> _loadLocalVoiceNotes() async {
     final prefs = await SharedPreferences.getInstance();
     final String chatId = _getChatId();
@@ -429,6 +432,7 @@ class _ChatScreenState extends State<ChatScreen> {
     seconds = seconds % 60;
     return '$minutes:${seconds.toString().padLeft(2, '0')}';
   }
+
   Future<void> pickImageFromGallery() async {
     final ImagePicker picker = ImagePicker();
     final XFile? image = await picker.pickImage(source: ImageSource.gallery);
@@ -447,8 +451,24 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  void processSelectedImage(XFile imageFile) {
+  Future<void> processSelectedImage(XFile imageFile) async {
+    try {
+      final Directory appDocDir = await getApplicationDocumentsDirectory();
+      final String imagePath = '${appDocDir.path}/image_${DateTime.now().millisecondsSinceEpoch}.png';
+      final File image = File(imagePath);
+      await image.writeAsBytes(await imageFile.readAsBytes());
+
+      await _sendImageMessage(imagePath);
+
+      setState(() {});
+    } catch (e) {
+      print('Error processing image: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to process image: ${e.toString()}')),
+      );
+    }
   }
+
   @override
   Widget build(BuildContext context) {
     String userId = _auth.currentUser?.uid ?? '';
@@ -618,7 +638,9 @@ class _ChatScreenState extends State<ChatScreen> {
                                 style: TextStyle(fontSize: 16, color: isMe ? Colors.white : Colors.black),
                               )
                             else if (messageType == 'voice')
-                              _buildVoiceMessageWidget(messageData, messageId, isMe),
+                              _buildVoiceMessageWidget(messageData, messageId, isMe)
+                            else if (messageType == 'image')
+                                _buildImageMessageWidget(messageData, isMe),
                             Align(
                               alignment: Alignment.bottomRight,
                               child: Text(
@@ -846,6 +868,43 @@ class _ChatScreenState extends State<ChatScreen> {
           ),
         ),
       ],
+    );
+  }
+  Widget _buildImageMessageWidget(Map<String, dynamic> messageData, bool isMe) {
+    final String imageUrl = messageData['imageUrl'] as String;
+
+    return GestureDetector(
+      onTap: () {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => Scaffold(
+              appBar: AppBar(
+                title: const Text('Image'),
+                backgroundColor: Colors.black,
+                iconTheme: const IconThemeData(color: Colors.white),
+              ),
+              backgroundColor: Colors.black,
+              body: Center(
+                child: PhotoView(
+                  imageProvider: FileImage(File(imageUrl)),
+                  minScale: PhotoViewComputedScale.contained,
+                  maxScale: PhotoViewComputedScale.covered * 2,
+                  backgroundDecoration: const BoxDecoration(color: Colors.black),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(10),
+        child: Image.file(
+          File(imageUrl),
+          width: 300,
+          height: 200,
+          fit: BoxFit.cover,
+        ),
+      ),
     );
   }
 }
