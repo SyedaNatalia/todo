@@ -442,7 +442,8 @@ class _OverdueTaskScreenState extends State<OverdueTaskScreen> {
     String userRole = snapshot.data!.get('role') ?? 'User';
     return Dismissible(
       key: Key(taskId),
-      direction: userRole == "Manager" ? DismissDirection.endToStart : DismissDirection.none,
+      direction: (userRole == "Manager" || userRole == "Team Lead")
+          ? DismissDirection.endToStart : DismissDirection.none,
       background: Container(
         color: Colors.red[300],
         alignment: Alignment.centerRight,
@@ -452,7 +453,7 @@ class _OverdueTaskScreenState extends State<OverdueTaskScreen> {
           color: Colors.white,
         ),
       ),
-      confirmDismiss: userRole == "Manager"
+      confirmDismiss: (userRole == "Manager" || userRole == "Team Lead")
           ? (direction) => _confirmDelete(context)
           : null,
       onDismissed: (direction) => _deleteTask(context, taskId),

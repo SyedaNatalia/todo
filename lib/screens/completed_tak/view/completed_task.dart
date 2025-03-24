@@ -356,7 +356,7 @@ class _CompletedTaskScreenState extends State<CompletedTaskScreen> {
                     final completedAt = taskData['updatedAt'] as Timestamp?;
                     return Dismissible(
                       key: Key(taskId),
-                      direction: userRole == "Manager"
+                      direction: (userRole == "Manager" || userRole == "Team Lead")
                           ? DismissDirection.endToStart
                           : DismissDirection.none,
                       background: Container(
@@ -368,7 +368,7 @@ class _CompletedTaskScreenState extends State<CompletedTaskScreen> {
                           color: Colors.white,
                         ),
                       ),
-                      confirmDismiss: userRole == "Manager"
+                      confirmDismiss: (userRole == "Manager" || userRole == "Team Lead")
                           ? (direction) async {
                         return await showDialog(
                           context: context,
@@ -456,9 +456,7 @@ class _CompletedTaskScreenState extends State<CompletedTaskScreen> {
                                     MaterialPageRoute(
                                       builder: (context) => ChatScreen(
                                         todoData: taskData,
-                                        // receiverId: userRole,
                                         receiverId: taskTitle,
-                                        // receiverEmail: assignedTo,
                                         receiverEmail: taskId,
                                       ),
                                     ),

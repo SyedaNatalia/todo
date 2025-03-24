@@ -69,17 +69,23 @@ class _HomeScreenState extends State<HomeScreen> {
   }
   Future<void> deleteTask(String taskId) async {
     try {
-      String? currentUserId = FirebaseAuth.instance.currentUser?.uid;//GetCurrentUserID
-      DocumentSnapshot userSnapshot = await FirebaseFirestore.instance//UserRole
+      String? currentUserId = FirebaseAuth.instance.currentUser?.uid;
+
+      DocumentSnapshot userSnapshot = await FirebaseFirestore.instance
           .collection('users')
           .doc(currentUserId)
           .get();
+
       if (!userSnapshot.exists) {
         throw Exception("User not found");
       }
+
       String userRole = userSnapshot.get('role') ?? 'User';
-      if (userRole == "Manager") {
+
+      // Allow both Manager and Team Lead to delete tasks
+      if (userRole == "Manager" || userRole == "Team Lead") {
         await FirebaseFirestore.instance.collection('todos').doc(taskId).delete();
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
@@ -95,7 +101,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         );
       } else {
-        throw Exception("Only Managers can delete tasks.");
+        throw Exception("Only Managers and Team Leads can delete tasks.");
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -119,32 +125,94 @@ class _HomeScreenState extends State<HomeScreen> {
     String? selectedAssignee = currentAssignee ?? currentUserEmail;
     _selectedDueDate = currentDueDate;
     List<String> userEmails = [];
+    Map<String, String> userRoles = {};
     bool isLoadingUsers = true;
+
+    String currentUserRole = 'User';
+
     Future<void> fetchUsers() async {
       try {
-        final QuerySnapshot userSnapshot = await _firestore.collection('users').get();
-        userEmails = userSnapshot.docs
-            .map((doc) => doc['email'] as String)
-            .toList();
-        if (selectedAssignee == null && userEmails.isNotEmpty) {
-          selectedAssignee = currentUserEmail;
+        final String? currentUserId = FirebaseAuth.instance.currentUser?.uid;
+        final DocumentSnapshot currentUserSnapshot = await _firestore
+            .collection('users')
+            .doc(currentUserId)
+            .get();
+
+        if (currentUserSnapshot.exists) {
+          currentUserRole = currentUserSnapshot.get('role') ?? 'User';
         }
+
+        final QuerySnapshot userSnapshot = await _firestore.collection('users').get();
+
+        for (var doc in userSnapshot.docs) {
+          String email = doc['email'] as String;
+          String role = doc['role'] as String;
+
+          userRoles[email] = role;
+
+          if (currentUserRole == 'Manager') {
+            if (email != currentUserEmail) {
+              userEmails.add(email);
+            }
+          } else if (currentUserRole == 'Team Lead') {
+            // Team Leads can assign to Employees and Interns
+            if ((role == 'Employee' || role == 'Intern') && email != currentUserEmail) {
+              userEmails.add(email);
+            }
+          } else if (currentUserRole == 'Employee') {
+            // Employees can only assign to Interns
+            if (role == 'Intern' && email != currentUserEmail) {
+              userEmails.add(email);
+            }
+          }
+        }
+
+        if (currentAssignee == null && userEmails.isNotEmpty) {
+          selectedAssignee = userEmails.first;
+        } else if (userEmails.isEmpty) {
+          selectedAssignee = null;
+        }
+
         isLoadingUsers = false;
       } catch (e) {
         print('Error fetching users: $e');
         isLoadingUsers = false;
       }
     }
+
+    await fetchUsers();
+    if (currentUserRole == 'Intern') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Interns are not allowed to assign tasks',
+            style: GoogleFonts.poppins(),
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    if (userEmails.isEmpty && currentUserRole != 'Intern') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'No users available to assign tasks to',
+            style: GoogleFonts.poppins(),
+          ),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
     await showDialog(
       context: context,
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setState) {
             if (isLoadingUsers) {
-              fetchUsers().then((_) {
-                setState(() {
-                });
-              });
               return AlertDialog(
                 backgroundColor: lightPeachColor,
                 shape: RoundedRectangleBorder(
@@ -203,10 +271,12 @@ class _HomeScreenState extends State<HomeScreen> {
                       style: GoogleFonts.nunito(),
                       dropdownColor: peachColor,
                       items: userEmails.map((String email) {
+                        // Show role alongside email for clarity
+                        String roleText = userRoles[email] != null ? ' (${userRoles[email]})' : '';
                         return DropdownMenuItem<String>(
                           value: email,
                           child: Text(
-                            email,
+                            email + roleText,
                             style: GoogleFonts.nunito(),
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -576,11 +646,83 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => showTaskDialog(),
-        backgroundColor: peachColor,
-        child: const Icon(Icons.add, color: Colors.black),
+      floatingActionButton: StreamBuilder<DocumentSnapshot>(
+        stream: FirebaseFirestore.instance.collection('users').doc(FirebaseAuth.instance.currentUser?.uid).snapshots(),
+        builder: (context, snapshot) {
+          // Show loading indicator while waiting for data
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return FloatingActionButton(
+              onPressed: null,
+              backgroundColor: Colors.grey,
+              child: const CircularProgressIndicator(color: Colors.white),
+            );
+          }
+
+          // Check if we have valid data
+          if (!snapshot.hasData || !snapshot.data!.exists) {
+            return const SizedBox.shrink();
+          }
+
+          // Get the user role
+          String userRole = snapshot.data!.get('role') ?? 'User';
+
+          // Display the button for Manager, Team Lead, and Employee roles
+          if (userRole == 'Manager' || userRole == 'Team Lead' || userRole == 'Employee') {
+            String tooltipText = '';
+            if (userRole == 'Manager') {
+              tooltipText = 'Assign task to anyone';
+            } else if (userRole == 'Team Lead') {
+              tooltipText = 'Assign task to Employees and Interns';
+            } else { // Employee
+              tooltipText = 'Assign task to Interns';
+            }
+
+            return FloatingActionButton(
+              onPressed: () => showTaskDialog(),
+              backgroundColor: peachColor,
+              child: const Icon(Icons.add, color: Colors.black),
+              tooltip: tooltipText,
+            );
+          } else {
+            // Return an empty widget for Interns or other roles
+            return const SizedBox.shrink();
+          }
+        },
       ),
+      // floatingActionButton: StreamBuilder<DocumentSnapshot>(
+      //   stream: FirebaseFirestore.instance.collection('users').doc(FirebaseAuth.instance.currentUser?.uid).snapshots(),
+      //   builder: (context, snapshot) {
+      //     // Show loading indicator while waiting for data
+      //     if (snapshot.connectionState == ConnectionState.waiting) {
+      //       return FloatingActionButton(
+      //         onPressed: null,
+      //         backgroundColor: Colors.grey,
+      //         child: const CircularProgressIndicator(color: Colors.white),
+      //       );
+      //     }
+      //
+      //     // Check if we have valid data
+      //     if (!snapshot.hasData || !snapshot.data!.exists) {
+      //       return const SizedBox.shrink();
+      //     }
+      //
+      //     // Get the user role
+      //     String userRole = snapshot.data!.get('role') ?? 'User';
+      //
+      //     // Only display the button for Manager and Employee roles
+      //     if (userRole == 'Manager' || userRole == 'Employee') {
+      //       return FloatingActionButton(
+      //         onPressed: () => showTaskDialog(),
+      //         backgroundColor: peachColor,
+      //         child: const Icon(Icons.add, color: Colors.black),
+      //         tooltip: '${userRole == 'Manager' ? 'Assign task to anyone' : 'Assign task to Interns'}',
+      //       );
+      //     } else {
+      //       // Return an empty widget for Interns or other roles
+      //       return const SizedBox.shrink();
+      //     }
+      //   },
+      // ),
     );
   }
   Widget _buildTaskCard(

@@ -394,9 +394,10 @@ class _PendingTaskScreenState extends State<PendingTaskScreen> {
                       return Center(child: CircularProgressIndicator());
                     }
                     String userRole = snapshot.data!.get('role') ?? 'User';
+
                     return Dismissible(
                       key: Key(taskId),
-                      direction: userRole == "Manager"
+                      direction: (userRole == "Manager"  || userRole == "Team Lead")
                           ? DismissDirection.endToStart
                           : DismissDirection.none,
                       background: Container(
@@ -408,7 +409,7 @@ class _PendingTaskScreenState extends State<PendingTaskScreen> {
                           color: Colors.white,
                         ),
                       ),
-                      confirmDismiss: userRole == "Manager"
+                      confirmDismiss: (userRole == "Manager" || userRole == "Team Lead")
                           ? (direction) async {
                         return await showDialog(
                           context: context,

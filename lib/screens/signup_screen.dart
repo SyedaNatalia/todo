@@ -24,7 +24,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
   String _selectedRole = 'Employee';
   bool _isPasswordVisible = false;
 
-  final List<String> _roles = ['Manager', 'Employee', 'Intern'];
+  final List<String> _roles = ['Manager', 'Employee', 'Intern','Team Lead'];
 
   @override
   Widget build(BuildContext context) {
