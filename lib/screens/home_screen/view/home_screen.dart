@@ -20,14 +20,12 @@ class _HomeScreenState extends State<HomeScreen> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final TextEditingController _taskController = TextEditingController();
 
-  final Color peachColor = const Color(0xFFFFB5A7);
-  final Color lightPeachColor = const Color(0xFFFFE5E0);
-  final Color darkPeachColor = const Color(0xFFFF8576);
+  final Color IndigoBlueColor  = const Color(0xFF79B2EC);
 
   bool _isLoading = false;
   bool _isRefreshing = false;
 
-  String? _selectedUser;
+  String? selectedUser;
   DateTime? _selectedDueDate;
 
   //user current email
@@ -47,7 +45,7 @@ class _HomeScreenState extends State<HomeScreen> {
         return Theme(
           data: Theme.of(context).copyWith(
             colorScheme: ColorScheme.light(
-              primary: peachColor,
+              primary: IndigoBlueColor,
               onPrimary: Colors.black,
               onSurface: Colors.black,
             ),
@@ -214,7 +212,7 @@ class _HomeScreenState extends State<HomeScreen> {
           builder: (context, setState) {
             if (isLoadingUsers) {
               return AlertDialog(
-                backgroundColor: lightPeachColor,
+                backgroundColor: IndigoBlueColor,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(20),
                 ),
@@ -223,14 +221,14 @@ class _HomeScreenState extends State<HomeScreen> {
                   height: 200,
                   child: Center(
                     child: CircularProgressIndicator(
-                      color: peachColor,
+                      color: IndigoBlueColor,
                     ),
                   ),
                 ),
               );
             }
             return AlertDialog(
-              backgroundColor: lightPeachColor,
+              backgroundColor: IndigoBlueColor,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(20),
               ),
@@ -251,7 +249,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         hintText: 'Enter task title',
                         hintStyle: GoogleFonts.nunito(color: Colors.black54),
                         focusedBorder: UnderlineInputBorder(
-                          borderSide: BorderSide(color: peachColor),
+                          borderSide: BorderSide(color: IndigoBlueColor),
                         ),
                       ),
                       autofocus: true,
@@ -264,14 +262,13 @@ class _HomeScreenState extends State<HomeScreen> {
                         labelStyle: GoogleFonts.nunito(),
                         border: UnderlineInputBorder(),
                         focusedBorder: UnderlineInputBorder(
-                          borderSide: BorderSide(color: peachColor),
+                          borderSide: BorderSide(color: IndigoBlueColor),
                         ),
                       ),
                       hint: Text('Select user', style: GoogleFonts.nunito()),
                       style: GoogleFonts.nunito(),
-                      dropdownColor: peachColor,
+                      dropdownColor: IndigoBlueColor,
                       items: userEmails.map((String email) {
-                        // Show role alongside email for clarity
                         String roleText = userRoles[email] != null ? ' (${userRoles[email]})' : '';
                         return DropdownMenuItem<String>(
                           value: email,
@@ -298,7 +295,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           labelStyle: GoogleFonts.nunito(),
                           border: UnderlineInputBorder(),
                           focusedBorder: UnderlineInputBorder(
-                            borderSide: BorderSide(color: peachColor),
+                            borderSide: BorderSide(color: IndigoBlueColor),
                           ),
                           suffixIcon: Icon(Icons.calendar_today, color: Colors.black54),
                         ),
@@ -404,7 +401,7 @@ class _HomeScreenState extends State<HomeScreen> {
           padding: EdgeInsets.zero,
           children: [
             DrawerHeader(
-              decoration: BoxDecoration(color: peachColor),
+              decoration: BoxDecoration(color: IndigoBlueColor),
               child: Text(
                 'HRM',
                 style: TextStyle(color: Colors.white, fontSize: 24),
@@ -466,7 +463,7 @@ class _HomeScreenState extends State<HomeScreen> {
               },
             ),
             ListTile(
-              leading: Icon(Icons.message_outlined),
+              leading: Icon(Icons.chat_outlined),
               title: Text('Chat'),
               onTap: () {
                 Navigator.pop(context);
@@ -503,7 +500,7 @@ class _HomeScreenState extends State<HomeScreen> {
             String userRole = userData['role'] ?? 'No role assigned';
 
             return AppBar(
-              backgroundColor: peachColor,
+              backgroundColor: IndigoBlueColor,
               shape: const RoundedRectangleBorder(
                 borderRadius: BorderRadius.vertical(bottom: Radius.circular(35)),
               ),
@@ -577,7 +574,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       MaterialPageRoute(builder: (context) => ChatHomeScreen()),
                     );
                   },
-                  icon: const Icon(Icons.chat, color: Colors.black),
+                  icon: const Icon(Icons.chat_outlined, color: Colors.black),
                 ),
                 IconButton(
                   onPressed: () async {
@@ -649,7 +646,6 @@ class _HomeScreenState extends State<HomeScreen> {
       floatingActionButton: StreamBuilder<DocumentSnapshot>(
         stream: FirebaseFirestore.instance.collection('users').doc(FirebaseAuth.instance.currentUser?.uid).snapshots(),
         builder: (context, snapshot) {
-          // Show loading indicator while waiting for data
           if (snapshot.connectionState == ConnectionState.waiting) {
             return FloatingActionButton(
               onPressed: null,
@@ -658,15 +654,12 @@ class _HomeScreenState extends State<HomeScreen> {
             );
           }
 
-          // Check if we have valid data
           if (!snapshot.hasData || !snapshot.data!.exists) {
             return const SizedBox.shrink();
           }
 
-          // Get the user role
           String userRole = snapshot.data!.get('role') ?? 'User';
 
-          // Display the button for Manager, Team Lead, and Employee roles
           if (userRole == 'Manager' || userRole == 'Team Lead' || userRole == 'Employee') {
             String tooltipText = '';
             if (userRole == 'Manager') {
@@ -679,50 +672,15 @@ class _HomeScreenState extends State<HomeScreen> {
 
             return FloatingActionButton(
               onPressed: () => showTaskDialog(),
-              backgroundColor: peachColor,
-              child: const Icon(Icons.add, color: Colors.black),
+              backgroundColor: IndigoBlueColor,
               tooltip: tooltipText,
+              child: Icon(Icons.add, color: Colors.black),
             );
           } else {
-            // Return an empty widget for Interns or other roles
             return const SizedBox.shrink();
           }
         },
       ),
-      // floatingActionButton: StreamBuilder<DocumentSnapshot>(
-      //   stream: FirebaseFirestore.instance.collection('users').doc(FirebaseAuth.instance.currentUser?.uid).snapshots(),
-      //   builder: (context, snapshot) {
-      //     // Show loading indicator while waiting for data
-      //     if (snapshot.connectionState == ConnectionState.waiting) {
-      //       return FloatingActionButton(
-      //         onPressed: null,
-      //         backgroundColor: Colors.grey,
-      //         child: const CircularProgressIndicator(color: Colors.white),
-      //       );
-      //     }
-      //
-      //     // Check if we have valid data
-      //     if (!snapshot.hasData || !snapshot.data!.exists) {
-      //       return const SizedBox.shrink();
-      //     }
-      //
-      //     // Get the user role
-      //     String userRole = snapshot.data!.get('role') ?? 'User';
-      //
-      //     // Only display the button for Manager and Employee roles
-      //     if (userRole == 'Manager' || userRole == 'Employee') {
-      //       return FloatingActionButton(
-      //         onPressed: () => showTaskDialog(),
-      //         backgroundColor: peachColor,
-      //         child: const Icon(Icons.add, color: Colors.black),
-      //         tooltip: '${userRole == 'Manager' ? 'Assign task to anyone' : 'Assign task to Interns'}',
-      //       );
-      //     } else {
-      //       // Return an empty widget for Interns or other roles
-      //       return const SizedBox.shrink();
-      //     }
-      //   },
-      // ),
     );
   }
   Widget _buildTaskCard(

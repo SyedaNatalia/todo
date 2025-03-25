@@ -19,7 +19,8 @@ class ChatHomeScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: Colors.blueGrey,
+        backgroundColor: Color(0xFF9DCEFF),
+
         title: Text(
           "Chats",
           style: GoogleFonts.poppins(
