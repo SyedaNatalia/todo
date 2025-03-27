@@ -40,15 +40,6 @@ class _LoginScreenState extends State<LoginScreen> {
             children: [
               _buildBackgroundBubbles(),
 
-              Positioned(
-                top: 20,
-                left: 20,
-                child: IconButton(
-                  icon: Icon(Icons.arrow_back, color: Colors.white),
-                  onPressed: () => Navigator.of(context).pop(),
-                ),
-              ),
-
               Center(
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.symmetric(horizontal: 24.0),

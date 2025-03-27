@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -10,6 +11,8 @@ import 'package:new_project/screens/overdue_task.dart';
 import 'package:new_project/screens/pending_task/view/pending_task.dart';
 import 'package:new_project/screens/profile_screen.dart';
 import 'package:new_project/services/auth_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -24,17 +27,58 @@ class _HomeScreenState extends State<HomeScreen> {
 
   bool _isLoading = false;
   bool _isRefreshing = false;
+  bool _isInitialLoading = true;
+
+  String? _profileImagePath;
 
   String? selectedUser;
   DateTime? _selectedDueDate;
 
   //user current email
   String get currentUserEmail => FirebaseAuth.instance.currentUser?.email ?? '';
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeHomeScreen();
+  }
+
+  Future<void> _initializeHomeScreen() async {
+    try {
+      await Future.delayed(const Duration(milliseconds: 500));
+      await _loadProfileImage();
+      setState(() {
+        _isInitialLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isInitialLoading = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Error initializing home screen',
+            style: GoogleFonts.poppins(),
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Future<void> _loadProfileImage() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _profileImagePath = prefs.getString('profile_image_path');
+    });
+  }
+
   @override
   void dispose() {
     _taskController.dispose();
     super.dispose();
   }
+
   Future<void> _selectDate(BuildContext context, StateSetter setDialogState) async {
     final DateTime? picked = await showDatePicker(
       context: context,
@@ -393,6 +437,29 @@ class _HomeScreenState extends State<HomeScreen> {
   }
   @override
   Widget build(BuildContext context) {
+    if (_isInitialLoading) {
+      return Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(
+                color: IndigoBlueColor,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Loading...',
+                style: GoogleFonts.poppins(
+                  fontSize: 16,
+                  color: IndigoBlueColor,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     User? user = FirebaseAuth.instance.currentUser;
     String userEmail = user?.email ?? '';
     return Scaffold(
@@ -559,7 +626,15 @@ class _HomeScreenState extends State<HomeScreen> {
                         },
                         child: CircleAvatar(
                           radius: 50,
-                          backgroundColor: Colors.grey.shade300,
+                          backgroundImage: _profileImagePath != null
+                              ? FileImage(File(_profileImagePath!))
+                              : null,
+                          backgroundColor: _profileImagePath == null
+                              ? Colors.grey.shade300
+                              : Colors.transparent,
+                          child: _profileImagePath == null
+                              ? Icon(Icons.person, color: Colors.grey.shade600)
+                              : null,
                         ),
                       ),
                     ],
@@ -666,7 +741,7 @@ class _HomeScreenState extends State<HomeScreen> {
               tooltipText = 'Assign task to anyone';
             } else if (userRole == 'Team Lead') {
               tooltipText = 'Assign task to Employees and Interns';
-            } else { // Employee
+            } else {
               tooltipText = 'Assign task to Interns';
             }
 
