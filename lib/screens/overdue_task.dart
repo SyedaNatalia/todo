@@ -16,6 +16,7 @@ class _OverdueTaskScreenState extends State<OverdueTaskScreen> {
   final Color redColor = const Color(0xFFF94144);
   final Color lightRedColor = const Color(0xFFF8D7DA);
   final Color darkRedColor = const Color(0xFFE63946);
+  final Color SkyBlue1 = const Color(0xFF87CEEB);
 
   String? get _currentUserEmail => _auth.currentUser?.email;
 
@@ -48,14 +49,14 @@ class _OverdueTaskScreenState extends State<OverdueTaskScreen> {
 
     showModalBottomSheet(
       context: context,
-      backgroundColor: lightRedColor,
+      backgroundColor: SkyBlue1,
       builder: (context) {
         return Container(
           width: MediaQuery.of(context).size.width * 0.95,
           margin: const EdgeInsets.symmetric(vertical: 20),
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: lightRedColor,
+            color: SkyBlue1,
             borderRadius: BorderRadius.circular(20),
           ),
           child: Column(
@@ -96,7 +97,7 @@ class _OverdueTaskScreenState extends State<OverdueTaskScreen> {
                 text: TextSpan(
                   children: [
                     TextSpan(
-                      text: 'Assigned To: ',
+                      text: 'Assigned By: ',
                       style: GoogleFonts.nunito(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
@@ -104,7 +105,7 @@ class _OverdueTaskScreenState extends State<OverdueTaskScreen> {
                       ),
                     ),
                     TextSpan(
-                      text: '${taskData['assignedTo'] ?? 'Not assigned'}',
+                      text: '${taskData['assignedBy'] ?? 'Not assigned'}',
                       style: GoogleFonts.nunito(
                         fontSize: 16,
                         color: Colors.black,
@@ -211,44 +212,6 @@ class _OverdueTaskScreenState extends State<OverdueTaskScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
-                  ElevatedButton(
-                    onPressed: () async {
-                      try {
-                        await _firestore.collection('todos').doc(taskData['id']).update({
-                          'isDone': true,
-                          'status': 'completed',
-                          'updatedAt': Timestamp.now(),
-                        });
-                        Navigator.pop(context);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              'Task marked as completed!',
-                              style: GoogleFonts.poppins(),
-                            ),
-                            backgroundColor: Colors.green,
-                          ),
-                        );
-                      } catch (e) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              'Failed to update task. Please try again.',
-                              style: GoogleFonts.poppins(),
-                            ),
-                            backgroundColor: Colors.red,
-                          ),
-                        );
-                      }
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green[400],
-                    ),
-                    child: Text(
-                      'Mark Complete',
-                      style: GoogleFonts.poppins(color: Colors.white),
-                    ),
-                  ),
                   ElevatedButton(
                     onPressed: () async {
                       try {
@@ -639,10 +602,6 @@ class _OverdueTaskScreenState extends State<OverdueTaskScreen> {
                   ),
                 );
               },
-            ),
-            IconButton(
-              icon: const Icon(Icons.check, color: Colors.green),
-              onPressed: () => _markTaskAsComplete(context, taskId),
             ),
             IconButton(
               icon: const Icon(Icons.update, color: Colors.blue),

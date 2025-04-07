@@ -61,9 +61,9 @@ class _ChatScreenState extends State<ChatScreen> {
     await _firestore.collection('chats').add({
       'text': '',
       'senderId': userId,
-      'receiverId': widget.todoData['assignedBy'],
+      'receiverId': widget.todoData['assignedTo'],
       'senderEmail': userEmail,
-      'receiverEmail': widget.todoData['assignedBy'],
+      'receiverEmail': widget.todoData['assignedTo'],
       'timestamp': FieldValue.serverTimestamp(),
       'messageType': 'image',
       'imageUrl': imageUrl,
@@ -96,7 +96,8 @@ class _ChatScreenState extends State<ChatScreen> {
 
   String _getChatId() {
     String userId = _auth.currentUser?.uid ?? '';
-    List<String> ids = [userId, widget.todoData['assignedBy']];
+    List<String> ids = [userId, widget.todoData['assignedTo']];
+
     ids.sort();
     return ids.join('_');
   }
@@ -133,9 +134,11 @@ class _ChatScreenState extends State<ChatScreen> {
       await _firestore.collection('chats').add({
         'text': _messageController.text.trim(),
         'senderId': userId,
-        'receiverId': widget.todoData['assignedBy'],
+        'receiverId': widget.todoData['assignedTo'],
+
         'senderEmail': userEmail,
-        'receiverEmail': widget.todoData['assignedBy'],
+        'receiverEmail': widget.todoData['assignedTo'],
+
         'timestamp': FieldValue.serverTimestamp(),
         'messageType': 'text',
         if (widget.taskId != null) 'taskId': widget.taskId,
@@ -157,9 +160,11 @@ class _ChatScreenState extends State<ChatScreen> {
       DocumentReference docRef = await _firestore.collection('chats').add({
         'id': messageId,
         'senderId': userId,
-        'receiverId': widget.todoData['assignedBy'],
+        'receiverId': widget.todoData['assignedTo'],
+
         'senderEmail': userEmail,
-        'receiverEmail': widget.todoData['assignedBy'],
+        'receiverEmail': widget.todoData['assignedTo'],
+
         'timestamp': FieldValue.serverTimestamp(),
         'messageType': 'voice',
         'base64Audio': base64Audio,
@@ -339,8 +344,9 @@ class _ChatScreenState extends State<ChatScreen> {
         'id': messageId,
         'senderId': userId,
         'senderEmail': userEmail,
-        'receiverId': widget.todoData['assignedBy'],
-        'receiverEmail': widget.todoData['assignedBy'],
+        'receiverId': widget.todoData['assignedTo'],
+        'receiverEmail': widget.todoData['assignedTo'],
+
         'timestamp': DateTime.now().millisecondsSinceEpoch,
         'messageType': 'voice',
         'filePath': filePath,
@@ -481,7 +487,8 @@ class _ChatScreenState extends State<ChatScreen> {
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Text(
-              widget.todoData['assignedBy'],
+              widget.todoData['assignedTo'],
+
               style: GoogleFonts.poppins(
                 fontSize: 15,
                 fontWeight: FontWeight.bold,
@@ -542,8 +549,8 @@ class _ChatScreenState extends State<ChatScreen> {
                 var messages = snapshot.data!.docs.where((doc) {
                   var data = doc.data() as Map<String, dynamic>;
 
-                  bool isPairMatch = (data['senderId'] == userId && data['receiverId'] == widget.todoData['assignedBy']) ||
-                      (data['senderId'] == widget.todoData['assignedBy'] && data['receiverId'] == userId);
+                  bool isPairMatch = (data['senderId'] == userId && data['receiverId'] == widget.todoData['assignedTo']) ||
+                      (data['senderId'] == widget.todoData['assignedTo'] && data['receiverId'] == userId);
 
                   return isPairMatch;
                 }).toList();

@@ -13,9 +13,8 @@ class CompletedTaskScreen extends StatefulWidget {
 class _CompletedTaskScreenState extends State<CompletedTaskScreen> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  final Color peachColor = const Color(0xFFFFB5A7);
-  final Color lightPeachColor = const Color(0xFFFFE5E0);
-  final Color darkPeachColor = const Color(0xFFFF8576);
+  final Color IndigoBlueColor  = const Color(0xFF79B2EC);
+  final Color SkyBlue1 = const Color(0xFF87CEEB);
 
   String? get _currentUserId => _auth.currentUser?.uid;  //CurrentLogged-inUserInfo
   String? get _currentUserEmail => _auth.currentUser?.email;
@@ -38,14 +37,14 @@ class _CompletedTaskScreenState extends State<CompletedTaskScreen> {
 
     showModalBottomSheet(
       context: context,
-      backgroundColor: lightPeachColor,
+      backgroundColor: SkyBlue1,
       builder: (context) {
         return Container(
           width: MediaQuery.of(context).size.width * 0.95,
           margin: const EdgeInsets.symmetric(vertical: 20),
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: lightPeachColor,
+            color: SkyBlue1,
             borderRadius: BorderRadius.circular(20),
           ),
           child: Column(
@@ -86,7 +85,7 @@ class _CompletedTaskScreenState extends State<CompletedTaskScreen> {
                 text: TextSpan(
                   children: [
                     TextSpan(
-                      text: 'Assigned To: ',
+                      text: 'Assigned By: ',
                       style: GoogleFonts.nunito(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
@@ -94,7 +93,7 @@ class _CompletedTaskScreenState extends State<CompletedTaskScreen> {
                       ),
                     ),
                     TextSpan(
-                      text: '${taskData['assignedTo'] ?? 'Not assigned'}',
+                      text: '${taskData['assignedBy'] ?? 'Not assigned'}',
                       style: GoogleFonts.nunito(
                         fontSize: 16,
                         color: Colors.black,
@@ -202,7 +201,7 @@ class _CompletedTaskScreenState extends State<CompletedTaskScreen> {
                   Navigator.pop(context);
                 },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: peachColor,
+                  backgroundColor: IndigoBlueColor,
                 ),
                 child: Text(
                   'Close',
@@ -352,7 +351,8 @@ class _CompletedTaskScreenState extends State<CompletedTaskScreen> {
                     final taskId = task.id;
                     final taskData = task.data() as Map<String, dynamic>;
                     final taskTitle = taskData['task'];
-                    final assignedTo = taskData['assignedTo'];
+                    final assignedBy = taskData['assignedBy'];
+
                     final completedAt = taskData['updatedAt'] as Timestamp?;
                     return Dismissible(
                       key: Key(taskId),
@@ -435,7 +435,7 @@ class _CompletedTaskScreenState extends State<CompletedTaskScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                'Assigned to: $assignedTo',
+                                'Assigned By: $assignedBy',
                                 style: GoogleFonts.nunito(fontSize: 14, color: Colors.black54),
                               ),
                               if (completedAt != null)

@@ -681,7 +681,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     context,
                     title: "Completed Tasks",
                     icon: Icons.check_circle,
-                    gradientColors: [Colors.green.withOpacity(0.7), Colors.green],
+                    gradientColors: [Colors.blue.withOpacity(0.7), Colors.green],
                     taskScreen: CompletedTaskScreen(),
                     query: FirebaseFirestore.instance
                         .collection('todos')
@@ -692,7 +692,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     context,
                     title: "Pending Tasks",
                     icon: Icons.pending_actions,
-                    gradientColors: [Colors.orange.withOpacity(0.7), Colors.orange],
+                    gradientColors: [Colors.blue.withOpacity(0.7), Colors.orange],
                     taskScreen: PendingTaskScreen(),
                     query: FirebaseFirestore.instance
                         .collection('todos')
@@ -704,7 +704,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     context,
                     title: "Overdue Tasks",
                     icon: Icons.warning,
-                    gradientColors: [Colors.red.withOpacity(0.7), Colors.red],
+                    gradientColors: [Colors.blue.withOpacity(0.7), Colors.red],
                     taskScreen: OverdueTaskScreen(),
                     query: FirebaseFirestore.instance
                         .collection('todos')
