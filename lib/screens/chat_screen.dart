@@ -66,7 +66,12 @@ class _ChatScreenState extends State<ChatScreen> {
       'receiverEmail': widget.todoData['assignedTo'],
       'timestamp': FieldValue.serverTimestamp(),
       'messageType': 'image',
-      'imageUrl': imageUrl,
+      'fileUrl': imageUrl,
+      'duration':'',
+      'id':'',
+      'taskId':'',
+      'taskTitle':'',
+
       if (widget.taskId != null) 'taskId': widget.taskId,
       if (widget.taskTitle != null) 'taskTitle': widget.taskTitle,
     });
@@ -135,12 +140,15 @@ class _ChatScreenState extends State<ChatScreen> {
         'text': _messageController.text.trim(),
         'senderId': userId,
         'receiverId': widget.todoData['assignedTo'],
-
         'senderEmail': userEmail,
         'receiverEmail': widget.todoData['assignedTo'],
-
         'timestamp': FieldValue.serverTimestamp(),
         'messageType': 'text',
+        'fileUrl':'',
+        'duration':'',
+        'id':'',
+        'taskId':'',
+        'taskTitle':'',
         if (widget.taskId != null) 'taskId': widget.taskId,
         if (widget.taskTitle != null) 'taskTitle': widget.taskTitle,
       });
@@ -161,14 +169,16 @@ class _ChatScreenState extends State<ChatScreen> {
         'id': messageId,
         'senderId': userId,
         'receiverId': widget.todoData['assignedTo'],
-
         'senderEmail': userEmail,
         'receiverEmail': widget.todoData['assignedTo'],
-
         'timestamp': FieldValue.serverTimestamp(),
         'messageType': 'voice',
-        'base64Audio': base64Audio,
+        'fileUrl': base64Audio,
         'duration': duration,
+        'text':'',
+        'taskId':'',
+        'taskTitle':'',
+
         if (widget.taskId != null) 'taskId': widget.taskId,
         if (widget.taskTitle != null) 'taskTitle': widget.taskTitle,
       });
@@ -340,6 +350,7 @@ class _ChatScreenState extends State<ChatScreen> {
       String userEmail = _auth.currentUser?.email ?? 'Unknown';
       String messageId = customMessageId ?? 'voice_${DateTime.now().millisecondsSinceEpoch}';
 
+
       Map<String, dynamic> voiceNote = {
         'id': messageId,
         'senderId': userId,
@@ -350,7 +361,7 @@ class _ChatScreenState extends State<ChatScreen> {
         'timestamp': DateTime.now().millisecondsSinceEpoch,
         'messageType': 'voice',
         'filePath': filePath,
-        'base64Audio': base64Audio,
+        'fileUrl': base64Audio,
         'duration': duration,
         if (widget.taskId != null) 'taskId': widget.taskId,
         if (widget.taskTitle != null) 'taskTitle': widget.taskTitle,
@@ -828,7 +839,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Widget _buildVoiceMessageWidget(Map<String, dynamic> messageData, String messageId, bool isMe) {
     final String? filePath = messageData['filePath'] as String?;
-    final String? base64Audio = messageData['base64Audio'] as String?;
+    final String? fileUrl = messageData['fileUrl'] as String?;
     final int duration = messageData['duration'] as int? ?? 0;
     final bool isPlaying = _currentlyPlayingId == messageId;
 
@@ -836,7 +847,7 @@ class _ChatScreenState extends State<ChatScreen> {
       mainAxisSize: MainAxisSize.min,
       children: [
         InkWell(
-          onTap: () => _playVoiceMessage(messageId, filePath: filePath, base64Audio: base64Audio),
+          onTap: () => _playVoiceMessage(messageId, filePath: filePath, base64Audio: fileUrl),
           child: Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
@@ -879,7 +890,7 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
   Widget _buildImageMessageWidget(Map<String, dynamic> messageData, bool isMe) {
-    final String imageUrl = messageData['imageUrl'] as String;
+    final String fileUrl = messageData['fileUrl'] as String;
 
     return GestureDetector(
       onTap: () {
@@ -894,7 +905,7 @@ class _ChatScreenState extends State<ChatScreen> {
               backgroundColor: Colors.black,
               body: Center(
                 child: PhotoView(
-                  imageProvider: FileImage(File(imageUrl)),
+                  imageProvider: FileImage(File(fileUrl)),
                   minScale: PhotoViewComputedScale.contained,
                   maxScale: PhotoViewComputedScale.covered * 2,
                   backgroundDecoration: const BoxDecoration(color: Colors.black),
@@ -907,7 +918,7 @@ class _ChatScreenState extends State<ChatScreen> {
       child: ClipRRect(
         borderRadius: BorderRadius.circular(10),
         child: Image.file(
-          File(imageUrl),
+          File(fileUrl),
           width: 300,
           height: 200,
           fit: BoxFit.cover,

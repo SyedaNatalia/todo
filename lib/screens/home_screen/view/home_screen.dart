@@ -459,7 +459,6 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       );
     }
-
     User? user = FirebaseAuth.instance.currentUser;
     String userEmail = user?.email ?? '';
     return Scaffold(
@@ -469,9 +468,101 @@ class _HomeScreenState extends State<HomeScreen> {
           children: [
             DrawerHeader(
               decoration: BoxDecoration(color: IndigoBlueColor),
-              child: Text(
-                'HRM',
-                style: TextStyle(color: Colors.white, fontSize: 24),
+              child: Stack(
+                children: [
+                  Align(
+                    alignment: Alignment.topCenter,
+                    child: Text(
+                      'HRM',
+                      style: TextStyle(
+                        color: Colors.black,
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+
+                  Positioned(
+                    bottom: 5,
+                    left: 5,
+                    child: GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const ProfileScreen()),
+                        );
+                      },
+                      child: CircleAvatar(
+                        radius: 50,
+                        backgroundImage: _profileImagePath != null
+                            ? FileImage(File(_profileImagePath!))
+                            : null,
+                        backgroundColor: _profileImagePath == null
+                            ? Colors.grey.shade300
+                            : Colors.transparent,
+                        child: _profileImagePath == null
+                            ? Icon(Icons.person, color: Colors.grey.shade600)
+                            : null,
+                      ),
+                    ),
+                  ),
+
+                  Positioned(
+                    bottom: 50,
+                    left: 120,
+                    child: StreamBuilder<DocumentSnapshot>(
+                      stream: FirebaseFirestore.instance.collection('users').doc(user?.uid).snapshots(),
+                      builder: (context, snapshot) {
+                        if (!snapshot.hasData || !snapshot.data!.exists) {
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              Text(
+                                'User',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.black,
+                                ),
+                              ),
+                              Text(
+                                'No role assigned',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 12,
+                                  color: Colors.black,
+                                ),
+                              ),
+                            ],
+                          );
+                        }
+                        var userData = snapshot.data!;
+                        String userFirstName = userData['firstName'] ?? 'User';
+                        String userRole = userData['role'] ?? 'No role assigned';
+
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            Text(
+                              userFirstName,
+                              style: GoogleFonts.poppins(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.black,
+                              ),
+                            ),
+                            Text(
+                              userRole,
+                              style: GoogleFonts.poppins(
+                                fontSize: 12,
+                                color: Colors.black,
+                              ),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+                  ),
+                ],
               ),
             ),
             ListTile(
@@ -593,53 +684,58 @@ class _HomeScreenState extends State<HomeScreen> {
                 ],
               ),
               centerTitle: true,
-              flexibleSpace: Align(
-                alignment: Alignment.bottomLeft,
-                child: Padding(
-                  padding: const EdgeInsets.only(left: 18.0, bottom: 10),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        userFirstName,
-                        style: GoogleFonts.poppins(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.black,
-                        ),
+              flexibleSpace: Stack(
+                children: [
+                  Positioned(
+                    bottom: 15,
+                    left: 18,
+                    child: GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const ProfileScreen()),
+                        );
+                      },
+                      child: CircleAvatar(
+                        radius: 50,
+                        backgroundImage: _profileImagePath != null
+                            ? FileImage(File(_profileImagePath!))
+                            : null,
+                        backgroundColor: _profileImagePath == null
+                            ? Colors.grey.shade300
+                            : Colors.transparent,
+                        child: _profileImagePath == null
+                            ? Icon(Icons.person, color: Colors.grey.shade600)
+                            : null,
                       ),
-                      Text(
-                        userRole,
-                        style: GoogleFonts.poppins(
-                          fontSize: 8,
-                          color: Colors.black,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      GestureDetector(
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (context) => const ProfileScreen()),
-                          );
-                        },
-                        child: CircleAvatar(
-                          radius: 50,
-                          backgroundImage: _profileImagePath != null
-                              ? FileImage(File(_profileImagePath!))
-                              : null,
-                          backgroundColor: _profileImagePath == null
-                              ? Colors.grey.shade300
-                              : Colors.transparent,
-                          child: _profileImagePath == null
-                              ? Icon(Icons.person, color: Colors.grey.shade600)
-                              : null,
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
-                ),
+
+                  Positioned(
+                    bottom: 50,
+                    left: 130,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Text(
+                          userFirstName,
+                          style: GoogleFonts.poppins(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.black,
+                          ),
+                        ),
+                        Text(
+                          userRole,
+                          style: GoogleFonts.poppins(
+                            fontSize: 12,
+                            color: Colors.black,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
               actions: [
                 IconButton(
