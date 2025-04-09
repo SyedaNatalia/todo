@@ -11,7 +11,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'package:image_picker/image_picker.dart';
 import 'package:photo_view/photo_view.dart';
-
+import 'package:http/http.dart';
 
 class ChatScreen extends StatefulWidget {
   final String receiverId;
@@ -158,52 +158,6 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  Future<void> _sendVoiceNote(String filePath, String base64Audio, int duration, {bool saveLocally = false}) async {
-    try {
-      String userId = _auth.currentUser?.uid ?? '';
-      String userEmail = _auth.currentUser?.email ?? 'Unknown';
-
-      String messageId = 'voice_${DateTime.now().millisecondsSinceEpoch}';
-
-      DocumentReference docRef = await _firestore.collection('chats').add({
-        'id': messageId,
-        'senderId': userId,
-        'receiverId': widget.todoData['assignedTo'],
-        'senderEmail': userEmail,
-        'receiverEmail': widget.todoData['assignedTo'],
-        'timestamp': FieldValue.serverTimestamp(),
-        'messageType': 'voice',
-        'fileUrl': base64Audio,
-        'duration': duration,
-        'text':'',
-        'taskId':'',
-        'taskTitle':'',
-
-        if (widget.taskId != null) 'taskId': widget.taskId,
-        if (widget.taskTitle != null) 'taskTitle': widget.taskTitle,
-      });
-
-      setState(() {
-        _firestoreMessageIds.add(docRef.id);
-      });
-
-      if (saveLocally) {
-        await _saveVoiceNoteLocally(filePath, base64Audio, duration, messageId);
-      }
-
-      _scrollToBottom();
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Voice note sent successfully')),
-      );
-    } catch (e) {
-      print('Error sending voice note: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to send voice note: ${e.toString()}')),
-      );
-    }
-  }
-
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) {
@@ -291,51 +245,16 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Future<void> _processVoiceNote(String filePath) async {
     try {
+      // Convert to base64 right away
       String? base64Audio = await convertVoiceNoteToBase64(filePath);
+      print("base64 $base64Audio");
       if (base64Audio == null) {
         throw Exception('Failed to convert audio to base64');
       }
 
       int duration = _calculateDuration();
 
-      showDialog(
-        context: context,
-        builder: (BuildContext context) {
-          return AlertDialog(
-            title: const Text('Voice Note Options'),
-            content: const Text('What would you like to do with this voice note?'),
-            actions: [
-              TextButton(
-                child: const Text('Save Locally'),
-                onPressed: () {
-                  Navigator.of(context).pop();
-                  _saveVoiceNoteLocally(filePath, base64Audio, duration);
-                },
-              ),
-              TextButton(
-                child: const Text('Send Now'),
-                onPressed: () {
-                  Navigator.of(context).pop();
-                  _sendVoiceNote(filePath, base64Audio, duration);
-                },
-              ),
-              TextButton(
-                child: const Text('Save and Send'),
-                onPressed: () {
-                  Navigator.of(context).pop();
-                  _sendVoiceNote(filePath, base64Audio, duration, saveLocally: true);
-                },
-              ),
-              TextButton(
-                child: const Text('Cancel'),
-                onPressed: () {
-                  Navigator.of(context).pop();
-                },
-              ),
-            ],
-          );
-        },
-      );
+      _saveVoiceNoteLocally(filePath, base64Audio, duration);
     } catch (e) {
       print('Error processing voice note: $e');
       ScaffoldMessenger.of(context).showSnackBar(
@@ -357,7 +276,6 @@ class _ChatScreenState extends State<ChatScreen> {
         'senderEmail': userEmail,
         'receiverId': widget.todoData['assignedTo'],
         'receiverEmail': widget.todoData['assignedTo'],
-
         'timestamp': DateTime.now().millisecondsSinceEpoch,
         'messageType': 'voice',
         'filePath': filePath,
@@ -414,13 +332,17 @@ class _ChatScreenState extends State<ChatScreen> {
 
     try {
       if (filePath != null && File(filePath).existsSync()) {
+        print('Playing voice note from file: $filePath');
         await _audioPlayer.play(DeviceFileSource(filePath));
-      } else if (base64Audio != null) {
+      }
+      if (base64Audio != null) {
+        print('Playing voice note from base64 data');
         Directory tempDir = await getTemporaryDirectory();
         String tempPath = '${tempDir.path}/temp_audio_$messageId.m4a';
 
         File tempFile = File(tempPath);
         await tempFile.writeAsBytes(base64Decode(base64Audio));
+        print('Created temporary file at: $base64Audio');
 
         await _audioPlayer.play(DeviceFileSource(tempPath));
       } else {
@@ -563,7 +485,9 @@ class _ChatScreenState extends State<ChatScreen> {
                   bool isPairMatch = (data['senderId'] == userId && data['receiverId'] == widget.todoData['assignedTo']) ||
                       (data['senderId'] == widget.todoData['assignedTo'] && data['receiverId'] == userId);
 
-                  return isPairMatch;
+                  bool isNotVoiceMessage = data['messageType'] != 'voice';
+
+                  return isPairMatch && isNotVoiceMessage;
                 }).toList();
 
                 List<Map<String, dynamic>> combinedMessages = [];
@@ -585,23 +509,11 @@ class _ChatScreenState extends State<ChatScreen> {
                 }
 
                 for (var voiceNote in _localVoiceNotes) {
-                  String voiceNoteId = voiceNote['id'] as String;
-                  bool alreadyInFirestore = false;
-
-                  for (var firestoreMsg in combinedMessages) {
-                    if (firestoreMsg['customId'] == voiceNoteId) {
-                      alreadyInFirestore = true;
-                      break;
-                    }
-                  }
-
-                  if (!alreadyInFirestore) {
-                    combinedMessages.add({
-                      ...voiceNote,
-                      'source': 'local',
-                      'timestamp': Timestamp.fromMillisecondsSinceEpoch(voiceNote['timestamp']),
-                    });
-                  }
+                  combinedMessages.add({
+                    ...voiceNote,
+                    'source': 'local',
+                    'timestamp': Timestamp.fromMillisecondsSinceEpoch(voiceNote['timestamp']),
+                  });
                 }
 
                 combinedMessages.sort((a, b) {
