@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
@@ -7,11 +6,10 @@ import 'package:record/record.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:convert';
 import 'package:image_picker/image_picker.dart';
 import 'package:photo_view/photo_view.dart';
-import 'package:http/http.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 class ChatScreen extends StatefulWidget {
   final String receiverId;
@@ -20,12 +18,14 @@ class ChatScreen extends StatefulWidget {
   final String? taskTitle;
   final Map<String, dynamic> todoData;
 
-  const ChatScreen({Key? key,
+  const ChatScreen({
+    Key? key,
     required this.receiverId,
     required this.receiverEmail,
     this.taskId,
     this.taskTitle,
-    required this.todoData}) : super(key: key);
+    required this.todoData,
+  }) : super(key: key);
 
   @override
   _ChatScreenState createState() => _ChatScreenState();
@@ -34,7 +34,6 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _messageController = TextEditingController();
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final ScrollController _scrollController = ScrollController();
 
   final AudioRecorder _audioRecorder = AudioRecorder();
@@ -45,116 +44,236 @@ class _ChatScreenState extends State<ChatScreen> {
   final AudioPlayer _audioPlayer = AudioPlayer();
   String? _currentlyPlayingId;
 
-  List<Map<String, dynamic>> _localVoiceNotes = [];
-  Set<String> _firestoreMessageIds = {};
+  final String apiBaseUrl = 'https://kirayanama.devsflutter.com/chat.php';
+
+  List<Map<String, dynamic>> _messages = [];
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _loadLocalVoiceNotes();
+    _fetchMessages();
   }
 
-  Future<void> _sendImageMessage(String imageUrl) async {
-    String userId = _auth.currentUser?.uid ?? '';
-    String userEmail = _auth.currentUser?.email ?? 'Unknown';
+  // Fetch messages from API
+  Future<void> _fetchMessages() async {
+    setState(() {
+      _isLoading = true;
+    });
 
-    await _firestore.collection('chats').add({
-      'text': '',
+    try {
+      String userId = _auth.currentUser?.uid ?? '';
+
+      final response = await http.get(
+        Uri.parse(apiBaseUrl),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        print(response.body);
+        _scrollToBottom();
+      } else {
+        print('Failed to load messages: ${response.statusCode}');
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      print('Error fetching messages: $e');
+      setState(() {
+        _isLoading = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to load messages: ${e.toString()}')),
+      );
+    }
+  }
+
+  Future<void> _sendMessage() async {
+    if (_messageController.text.isEmpty) return;
+
+    final userId = _auth.currentUser?.uid ?? '';
+    final userEmail = _auth.currentUser?.email ?? 'Unknown';
+
+    final messageData = {
+      'text': _messageController.text.trim(),
       'senderId': userId,
       'receiverId': widget.todoData['assignedTo'],
       'senderEmail': userEmail,
-      'receiverEmail': widget.todoData['assignedTo'],
-      'timestamp': FieldValue.serverTimestamp(),
-      'messageType': 'image',
-      'fileUrl': imageUrl,
-      'duration':'',
+      'receiverEmail': widget.todoData['assignedToEmail'] ?? widget.todoData['assignedTo'],
+      'timestamp': DateTime.now().millisecondsSinceEpoch,
+      'messageType': 'text',
+      'taskId': widget.taskId,
+      'taskTitle': widget.taskTitle,
+      'fileUrl': '',
+      'duration': '',
       'id':'',
-      'taskId':'',
-      'taskTitle':'',
 
-      if (widget.taskId != null) 'taskId': widget.taskId,
-      if (widget.taskTitle != null) 'taskTitle': widget.taskTitle,
+    };
+
+    setState(() {
+      _messages.add({
+        ...messageData,
+        'id': 'temp_${DateTime.now().millisecondsSinceEpoch}',
+        'isPending': true,
+      });
     });
 
+    _messageController.clear();
     _scrollToBottom();
-  }
 
-  Future<void> _loadLocalVoiceNotes() async {
-    final prefs = await SharedPreferences.getInstance();
-    final String chatId = _getChatId();
-    final String? voiceNotesJson = prefs.getString('voice_notes_$chatId');
-
-    if (voiceNotesJson != null) {
-      setState(() {
-        _localVoiceNotes = List<Map<String, dynamic>>.from(
-            json.decode(voiceNotesJson).map((item) => Map<String, dynamic>.from(item))
-        );
-      });
-    }
-  }
-
-  Future<void> _saveLocalVoiceNotes() async {
-    final prefs = await SharedPreferences.getInstance();
-    final String chatId = _getChatId();
-    await prefs.setString('voice_notes_$chatId', json.encode(_localVoiceNotes));
-  }
-
-  String _getChatId() {
-    String userId = _auth.currentUser?.uid ?? '';
-    List<String> ids = [userId, widget.todoData['assignedTo']];
-
-    ids.sort();
-    return ids.join('_');
-  }
-
-  @override
-  void dispose() {
-    _audioRecorder.dispose();
-    _audioPlayer.dispose();
-    _scrollController.dispose();
-    super.dispose();
-  }
-
-  Future<String?> convertVoiceNoteToBase64(String filePath) async {
     try {
-      File audioFile = File(filePath);
-      if (await audioFile.exists()) {
-        List<int> audioBytes = await audioFile.readAsBytes();
-        return base64Encode(audioBytes);
+      final response = await http.post(
+        Uri.parse(apiBaseUrl),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: json.encode({
+          'id': '',
+          'senderId': userId,
+          'senderEmail': userEmail,
+          'receiverId': userId,
+          'receiverEmail': widget.todoData['assignedTo'],
+          'timestamp': DateTime.now().millisecondsSinceEpoch,
+          'messageType': 'text',
+          'fileUrl': '',
+          'duration': '',
+          'taskId': widget.taskId,
+          'taskTitle': widget.taskTitle,
+          'text':_messageController.text.trim(),
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final responseData = json.decode(response.body);
+        if (responseData['status'] == 'success') {
+          setState(() {
+            final index = _messages.indexWhere((msg) =>
+            msg['isPending'] == true &&
+                msg['text'] == messageData['text']);
+            if (index != -1) {
+              _messages[index] = {
+                ..._messages[index],
+                ...responseData['message'],
+                'isPending': false,
+              };
+            }
+          });
+        } else {
+          throw Exception(responseData['message']);
+        }
       } else {
-        print('Audio file does not exist at path: $filePath');
-        return null;
+        throw Exception('Failed to send message: ${response.statusCode}');
       }
     } catch (e) {
-      print('Error converting voice note to base64: $e');
-      return null;
+      print('Error sending message: $e');
+      setState(() {
+        final index = _messages.indexWhere((msg) =>
+        msg['isPending'] == true &&
+            msg['text'] == messageData['text']);
+        if (index != -1) {
+          _messages[index]['isFailed'] = true;
+        }
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to send message: ${e.toString()}')),
+      );
     }
   }
 
-  void _sendMessage() async {
-    if (_messageController.text.isNotEmpty) {
-      String userId = _auth.currentUser?.uid ?? '';
-      String userEmail = _auth.currentUser?.email ?? 'Unknown';
+  Future<void> _sendImageMessage(String imagePath) async {
+    try {
+      final userId = _auth.currentUser?.uid ?? '';
+      final userEmail = _auth.currentUser?.email ?? 'Unknown';
+      final imageFile = File(imagePath);
+      final imageBytes = await imageFile.readAsBytes();
+      final base64Image = base64Encode(imageBytes);
 
-      await _firestore.collection('chats').add({
-        'text': _messageController.text.trim(),
+      final messageData = {
         'senderId': userId,
-        'receiverId': widget.todoData['assignedTo'],
+        'receiverId': userId,
         'senderEmail': userEmail,
-        'receiverEmail': widget.todoData['assignedTo'],
-        'timestamp': FieldValue.serverTimestamp(),
-        'messageType': 'text',
-        'fileUrl':'',
-        'duration':'',
+        'receiverEmail': userEmail,
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
+        'messageType': 'image',
+        'taskId': '',
+        'taskTitle': '',
+        'fileUrl': '',
+        'duration': '',
         'id':'',
-        'taskId':'',
-        'taskTitle':'',
-        if (widget.taskId != null) 'taskId': widget.taskId,
-        if (widget.taskTitle != null) 'taskTitle': widget.taskTitle,
+        'text': '',
+      };
+
+      final tempId = 'temp_${DateTime.now().millisecondsSinceEpoch}';
+      setState(() {
+        _messages.add({
+          ...messageData,
+          'id': tempId,
+          'localFilePath': imagePath,
+          'isPending': true,
+        });
       });
 
-      _messageController.clear();
       _scrollToBottom();
+
+      final response = await http.post(
+        Uri.parse(apiBaseUrl),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: json.encode({
+          'id': '',
+          'senderId': userId,
+          'senderEmail': userEmail,
+          'receiverId': userId,
+          'receiverEmail': userEmail ,
+          'timestamp': DateTime.now().millisecondsSinceEpoch,
+          'messageType': 'image',
+          'fileUrl': '',
+          'duration': '',
+          'taskId': '',
+          'taskTitle': '',
+          'text':'',
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final responseData = json.decode(response.body);
+        if (responseData['status'] == 'success') {
+          setState(() {
+            final index = _messages.indexWhere((msg) => msg['id'] == tempId);
+            if (index != -1) {
+              _messages[index] = {
+                ..._messages[index],
+                ...responseData['message'],
+                'isPending': false,
+                'localFilePath': imagePath,
+              };
+            }
+          });
+        } else {
+          throw Exception(responseData['message']);
+        }
+      } else {
+        throw Exception('Failed to send image: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Error sending image: $e');
+      setState(() {
+        final index = _messages.indexWhere((msg) =>
+        msg['localFilePath'] == imagePath &&
+            msg['isPending'] == true);
+        if (index != -1) {
+          _messages[index]['isFailed'] = true;
+        }
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to send image: ${e.toString()}')),
+      );
     }
   }
 
@@ -168,6 +287,96 @@ class _ChatScreenState extends State<ChatScreen> {
         );
       }
     });
+  }
+
+  Future<void> _sendVoiceNote(String filePath) async {
+    try {
+      String userId = _auth.currentUser?.uid ?? '';
+      String userEmail = _auth.currentUser?.email ?? 'Unknown';
+      int duration = _calculateDuration();
+      String messageId = 'msg_${DateTime.now().millisecondsSinceEpoch}';
+
+      File audioFile = File(filePath);
+      List<int> audioBytes = await audioFile.readAsBytes();
+      String base64Audio = base64Encode(audioBytes);
+
+      final tempId = 'temp_${DateTime.now().millisecondsSinceEpoch}';
+      setState(() {
+        _messages.add({
+          'id': messageId,
+          'senderId': userId,
+          'senderEmail': userEmail,
+          'receiverId': userId,
+          'receiverEmail': userEmail,
+          'timestamp': DateTime.now().millisecondsSinceEpoch,
+          'messageType': 'voice',
+          'taskId': '',
+          'taskTitle': '',
+          'fileUrl': base64Audio,
+          'duration': duration,
+          'text':'',
+
+        });
+      });
+
+      _scrollToBottom();
+
+      final response = await http.post(
+        Uri.parse(apiBaseUrl),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: json.encode({
+          'id': messageId,
+          'senderId': userId,
+          'senderEmail': userEmail,
+          'receiverId': userId,
+          'receiverEmail': userEmail,
+          'timestamp': DateTime.now().millisecondsSinceEpoch,
+          'messageType': 'voice',
+          'fileUrl': base64Audio,
+          'duration': duration,
+          'taskId': '',
+          'taskTitle': '',
+          'text':'',
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        setState(() {
+          int index = _messages.indexWhere((msg) => msg['id'] == tempId);
+          if (index != -1) {
+            _messages[index] = {
+              ..._messages[index],
+              'id': messageId,
+              'isPending': false,
+            };
+          }
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Voice note sent successfully')),
+        );
+      } else {
+        print('Failed to send voice note: ${response.statusCode}');
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to send voice note. Please try again.')),
+        );
+
+        setState(() {
+          _messages.removeWhere((msg) => msg['id'] == tempId && msg['isPending'] == true);
+        });
+      }
+    } catch (e) {
+      print('Error sending voice note: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error sending voice note: ${e.toString()}')),
+      );
+
+      setState(() {
+        _messages.removeWhere((msg) => msg['isPending'] == true && msg['localFilePath'] == filePath);
+      });
+    }
   }
 
   Future<void> _startRecording() async {
@@ -219,7 +428,7 @@ class _ChatScreenState extends State<ChatScreen> {
         File audioFile = File(path);
         if (await audioFile.exists()) {
           print('Audio file exists with size: ${await audioFile.length()} bytes');
-          await _processVoiceNote(path);
+          await _sendVoiceNote(path);
         } else {
           print('Audio file does not exist at path: $path');
           ScaffoldMessenger.of(context).showSnackBar(
@@ -243,77 +452,14 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  Future<void> _processVoiceNote(String filePath) async {
-    try {
-      // Convert to base64 right away
-      String? base64Audio = await convertVoiceNoteToBase64(filePath);
-      print("base64 $base64Audio");
-      if (base64Audio == null) {
-        throw Exception('Failed to convert audio to base64');
-      }
-
-      int duration = _calculateDuration();
-
-      _saveVoiceNoteLocally(filePath, base64Audio, duration);
-    } catch (e) {
-      print('Error processing voice note: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to process voice note: ${e.toString()}')),
-      );
-    }
-  }
-
-  Future<void> _saveVoiceNoteLocally(String filePath, String base64Audio, int duration, [String? customMessageId]) async {
-    try {
-      String userId = _auth.currentUser?.uid ?? '';
-      String userEmail = _auth.currentUser?.email ?? 'Unknown';
-      String messageId = customMessageId ?? 'voice_${DateTime.now().millisecondsSinceEpoch}';
-
-
-      Map<String, dynamic> voiceNote = {
-        'id': messageId,
-        'senderId': userId,
-        'senderEmail': userEmail,
-        'receiverId': widget.todoData['assignedTo'],
-        'receiverEmail': widget.todoData['assignedTo'],
-        'timestamp': DateTime.now().millisecondsSinceEpoch,
-        'messageType': 'voice',
-        'filePath': filePath,
-        'fileUrl': base64Audio,
-        'duration': duration,
-        if (widget.taskId != null) 'taskId': widget.taskId,
-        if (widget.taskTitle != null) 'taskTitle': widget.taskTitle,
-      };
-
-      setState(() {
-        _localVoiceNotes.add(voiceNote);
-      });
-
-      await _saveLocalVoiceNotes();
-
-      _scrollToBottom();
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Voice note saved locally')),
-      );
-
-    } catch (e) {
-      print('Error saving voice note locally: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to save voice note: ${e.toString()}')),
-      );
-    }
-  }
-
   int _calculateDuration() {
     if (_recordingStartTime == null) {
       return 0;
     }
-
     return DateTime.now().difference(_recordingStartTime!).inMilliseconds;
   }
 
-  Future<void> _playVoiceMessage(String messageId, {String? filePath, String? base64Audio}) async {
+  Future<void> _playVoiceMessage(String messageId, {String? localFilePath, String? base64Audio}) async {
     if (_currentlyPlayingId == messageId) {
       await _audioPlayer.stop();
       setState(() {
@@ -331,18 +477,16 @@ class _ChatScreenState extends State<ChatScreen> {
     });
 
     try {
-      if (filePath != null && File(filePath).existsSync()) {
-        print('Playing voice note from file: $filePath');
-        await _audioPlayer.play(DeviceFileSource(filePath));
-      }
-      if (base64Audio != null) {
+      if (localFilePath != null && File(localFilePath).existsSync()) {
+        print('Playing voice note from local file: $localFilePath');
+        await _audioPlayer.play(DeviceFileSource(localFilePath));
+      } else if (base64Audio != null) {
         print('Playing voice note from base64 data');
         Directory tempDir = await getTemporaryDirectory();
         String tempPath = '${tempDir.path}/temp_audio_$messageId.m4a';
 
         File tempFile = File(tempPath);
         await tempFile.writeAsBytes(base64Decode(base64Audio));
-        print('Created temporary file at: $base64Audio');
 
         await _audioPlayer.play(DeviceFileSource(tempPath));
       } else {
@@ -398,8 +542,6 @@ class _ChatScreenState extends State<ChatScreen> {
       await image.writeAsBytes(await imageFile.readAsBytes());
 
       await _sendImageMessage(imagePath);
-
-      setState(() {});
     } catch (e) {
       print('Error processing image: $e');
       ScaffoldMessenger.of(context).showSnackBar(
@@ -415,13 +557,11 @@ class _ChatScreenState extends State<ChatScreen> {
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Color(0xFF9DCEFF),
-
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Text(
               widget.todoData['assignedTo'],
-
               style: GoogleFonts.poppins(
                 fontSize: 15,
                 fontWeight: FontWeight.bold,
@@ -469,77 +609,36 @@ class _ChatScreenState extends State<ChatScreen> {
               ),
             ),
           Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              stream: _firestore
-                  .collection('chats')
-                  .orderBy('timestamp', descending: false)
-                  .snapshots(),
-              builder: (context, snapshot) {
-                if (!snapshot.hasData) {
-                  return const Center(child: CircularProgressIndicator());
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : ListView.builder(
+              controller: _scrollController,
+              itemCount: _messages.length,
+              itemBuilder: (context, index) {
+                var messageData = _messages[index];
+                var messageId = messageData['id'] as String;
+                var senderId = messageData['senderId'] as String;
+                var senderEmail = messageData['senderEmail'] as String? ?? 'Unknown';
+                var messageType = messageData['messageType'] as String? ?? 'text';
+                var isPending = messageData['isPending'] as bool? ?? false;
+
+                // Convert timestamp to DateTime
+                DateTime timestamp;
+                if (messageData['timestamp'] is int) {
+                  timestamp = DateTime.fromMillisecondsSinceEpoch(messageData['timestamp']);
+                } else {
+                  // Fallback in case the API returns a different format
+                  timestamp = DateTime.now();
                 }
 
-                var messages = snapshot.data!.docs.where((doc) {
-                  var data = doc.data() as Map<String, dynamic>;
+                String timeString = DateFormat('h:mm a').format(timestamp);
+                bool isMe = senderId == userId;
 
-                  bool isPairMatch = (data['senderId'] == userId && data['receiverId'] == widget.todoData['assignedTo']) ||
-                      (data['senderId'] == widget.todoData['assignedTo'] && data['receiverId'] == userId);
-
-                  bool isNotVoiceMessage = data['messageType'] != 'voice';
-
-                  return isPairMatch && isNotVoiceMessage;
-                }).toList();
-
-                List<Map<String, dynamic>> combinedMessages = [];
-                _firestoreMessageIds.clear();
-
-                for (var message in messages) {
-                  var data = message.data() as Map<String, dynamic>;
-                  _firestoreMessageIds.add(message.id);
-
-                  String? customId = data['id'] as String?;
-
-                  combinedMessages.add({
-                    ...data,
-                    'id': message.id,
-                    'customId': customId,
-                    'source': 'firestore',
-                    'timestamp': data['timestamp'] ?? Timestamp.now(),
-                  });
-                }
-
-                for (var voiceNote in _localVoiceNotes) {
-                  combinedMessages.add({
-                    ...voiceNote,
-                    'source': 'local',
-                    'timestamp': Timestamp.fromMillisecondsSinceEpoch(voiceNote['timestamp']),
-                  });
-                }
-
-                combinedMessages.sort((a, b) {
-                  Timestamp timestampA = a['timestamp'] as Timestamp;
-                  Timestamp timestampB = b['timestamp'] as Timestamp;
-                  return timestampA.compareTo(timestampB);
-                });
-
-                return ListView.builder(
-                  controller: _scrollController,
-                  itemCount: combinedMessages.length,
-                  itemBuilder: (context, index) {
-                    var messageData = combinedMessages[index];
-                    var messageId = messageData['id'] as String;
-                    var senderId = messageData['senderId'] as String;
-                    var senderEmail = messageData['senderEmail'] as String? ?? 'Unknown';
-                    var timestamp = messageData['timestamp'] as Timestamp;
-                    var messageType = messageData['messageType'] as String? ?? 'text';
-                    var messageSource = messageData['source'] as String;
-
-                    bool isMe = senderId == userId;
-                    String timeString = DateFormat('h:mm a').format(timestamp.toDate());
-
-                    return Align(
-                      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
-                      child: Container(
+                return Align(
+                  alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+                  child: Stack(
+                    children: [
+                      Container(
                         margin: EdgeInsets.only(
                           top: 4,
                           bottom: 4,
@@ -565,7 +664,7 @@ class _ChatScreenState extends State<ChatScreen> {
                             const SizedBox(height: 5),
                             if (messageType == 'text')
                               Text(
-                                messageData['text'] as String,
+                                messageData['text'] as String? ?? '',
                                 style: TextStyle(fontSize: 16, color: isMe ? Colors.white : Colors.black),
                               )
                             else if (messageType == 'voice')
@@ -574,19 +673,29 @@ class _ChatScreenState extends State<ChatScreen> {
                                 _buildImageMessageWidget(messageData, isMe),
                             Align(
                               alignment: Alignment.bottomRight,
-                              child: Text(
-                                timeString,
-                                style: TextStyle(
-                                    fontSize: 10,
-                                    color: isMe ? Colors.white70 : Colors.black54
-                                ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    timeString,
+                                    style: TextStyle(
+                                        fontSize: 10,
+                                        color: isMe ? Colors.white70 : Colors.black54
+                                    ),
+                                  ),
+                                  if (isPending)
+                                    Padding(
+                                      padding: const EdgeInsets.only(left: 4),
+                                      child: Icon(Icons.access_time, size: 10, color: isMe ? Colors.white70 : Colors.black54),
+                                    ),
+                                ],
                               ),
                             ),
                           ],
                         ),
                       ),
-                    );
-                  },
+                    ],
+                  ),
                 );
               },
             ),
@@ -750,8 +859,8 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Widget _buildVoiceMessageWidget(Map<String, dynamic> messageData, String messageId, bool isMe) {
-    final String? filePath = messageData['filePath'] as String?;
-    final String? fileUrl = messageData['fileUrl'] as String?;
+    final String? localFilePath = messageData['localFilePath'] as String?;
+    final String? fileData = messageData['fileData'] as String?;
     final int duration = messageData['duration'] as int? ?? 0;
     final bool isPlaying = _currentlyPlayingId == messageId;
 
@@ -759,7 +868,7 @@ class _ChatScreenState extends State<ChatScreen> {
       mainAxisSize: MainAxisSize.min,
       children: [
         InkWell(
-          onTap: () => _playVoiceMessage(messageId, filePath: filePath, base64Audio: fileUrl),
+          onTap: () => _playVoiceMessage(messageId, localFilePath: localFilePath, base64Audio: fileData),
           child: Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
@@ -801,8 +910,37 @@ class _ChatScreenState extends State<ChatScreen> {
       ],
     );
   }
+
   Widget _buildImageMessageWidget(Map<String, dynamic> messageData, bool isMe) {
-    final String fileUrl = messageData['fileUrl'] as String;
+    final String? localFilePath = messageData['localFilePath'] as String?;
+    final String? fileData = messageData['fileData'] as String?;
+
+    Widget imageWidget;
+
+    if (localFilePath != null && File(localFilePath).existsSync()) {
+      imageWidget = Image.file(
+        File(localFilePath),
+        width: 300,
+        height: 200,
+        fit: BoxFit.cover,
+      );
+    } else if (fileData != null) {
+      imageWidget = Image.memory(
+        base64Decode(fileData),
+        width: 300,
+        height: 200,
+        fit: BoxFit.cover,
+      );
+    } else {
+      imageWidget = Container(
+        width: 300,
+        height: 200,
+        color: Colors.grey.shade300,
+        child: const Center(
+          child: Icon(Icons.broken_image, size: 50, color: Colors.grey),
+        ),
+      );
+    }
 
     return GestureDetector(
       onTap: () {
@@ -817,7 +955,11 @@ class _ChatScreenState extends State<ChatScreen> {
               backgroundColor: Colors.black,
               body: Center(
                 child: PhotoView(
-                  imageProvider: FileImage(File(fileUrl)),
+                  imageProvider: localFilePath != null && File(localFilePath).existsSync()
+                      ? FileImage(File(localFilePath))
+                      : fileData != null
+                      ? MemoryImage(base64Decode(fileData))
+                      : const AssetImage('assets/placeholder.png') as ImageProvider,
                   minScale: PhotoViewComputedScale.contained,
                   maxScale: PhotoViewComputedScale.covered * 2,
                   backgroundDecoration: const BoxDecoration(color: Colors.black),
@@ -829,13 +971,18 @@ class _ChatScreenState extends State<ChatScreen> {
       },
       child: ClipRRect(
         borderRadius: BorderRadius.circular(10),
-        child: Image.file(
-          File(fileUrl),
-          width: 300,
-          height: 200,
-          fit: BoxFit.cover,
-        ),
+        child: imageWidget,
       ),
     );
   }
+
+  @override
+  void dispose() {
+    _messageController.dispose();
+    _audioRecorder.dispose();
+    _audioPlayer.dispose();
+    _scrollController.dispose();
+    super.dispose();
+  }
 }
+
