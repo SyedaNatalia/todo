@@ -97,20 +97,23 @@ class _ChatScreenState extends State<ChatScreen> {
     final userId = _auth.currentUser?.uid ?? '';
     final userEmail = _auth.currentUser?.email ?? 'Unknown';
 
+    final String messageText = _messageController.text.trim();
+    DateTime now = DateTime.now();
+    String formattedTimestamp = now.toIso8601String();
+
     final messageData = {
-      'text': _messageController.text.trim(),
+      'text': messageText,
       'senderId': userId,
       'receiverId': widget.todoData['assignedTo'],
       'senderEmail': userEmail,
       'receiverEmail': widget.todoData['assignedToEmail'] ?? widget.todoData['assignedTo'],
-      'timestamp': DateTime.now().millisecondsSinceEpoch,
+      'timestampString': formattedTimestamp,
       'messageType': 'text',
       'taskId': widget.taskId,
       'taskTitle': widget.taskTitle,
       'fileUrl': '',
       'duration': '',
       'id':'',
-
     };
 
     setState(() {
@@ -134,15 +137,15 @@ class _ChatScreenState extends State<ChatScreen> {
           'id': '',
           'senderId': userId,
           'senderEmail': userEmail,
-          'receiverId': userId,
+          'receiverId':userId,
           'receiverEmail': widget.todoData['assignedTo'],
-          'timestamp': DateTime.now().millisecondsSinceEpoch,
+          'timestampString': formattedTimestamp,
           'messageType': 'text',
           'fileUrl': '',
           'duration': '',
           'taskId': widget.taskId,
           'taskTitle': widget.taskTitle,
-          'text':_messageController.text.trim(),
+          'text':messageText,
         }),
       );
 
@@ -191,17 +194,19 @@ class _ChatScreenState extends State<ChatScreen> {
       final imageFile = File(imagePath);
       final imageBytes = await imageFile.readAsBytes();
       final base64Image = base64Encode(imageBytes);
+      final DateTime now = DateTime.now();
+      final String formattedTimestamp = now.toIso8601String();
 
       final messageData = {
         'senderId': userId,
         'receiverId': userId,
         'senderEmail': userEmail,
-        'receiverEmail': userEmail,
-        'timestamp': DateTime.now().millisecondsSinceEpoch,
+        'receiverEmail': widget.todoData['assignedTo'],
+        'timestampString': formattedTimestamp,
         'messageType': 'image',
         'taskId': '',
         'taskTitle': '',
-        'fileUrl': '',
+        'fileUrl': base64Image,
         'duration': '',
         'id':'',
         'text': '',
@@ -229,10 +234,10 @@ class _ChatScreenState extends State<ChatScreen> {
           'senderId': userId,
           'senderEmail': userEmail,
           'receiverId': userId,
-          'receiverEmail': userEmail ,
-          'timestamp': DateTime.now().millisecondsSinceEpoch,
+          'receiverEmail': widget.todoData['assignedTo'],
+          'timestampString': formattedTimestamp,
           'messageType': 'image',
-          'fileUrl': '',
+          'fileUrl': base64Image,
           'duration': '',
           'taskId': '',
           'taskTitle': '',
@@ -301,21 +306,22 @@ class _ChatScreenState extends State<ChatScreen> {
       String base64Audio = base64Encode(audioBytes);
 
       final tempId = 'temp_${DateTime.now().millisecondsSinceEpoch}';
+      final DateTime now = DateTime.now();
+      final String formattedTimestamp = now.toIso8601String();
       setState(() {
         _messages.add({
           'id': messageId,
           'senderId': userId,
           'senderEmail': userEmail,
           'receiverId': userId,
-          'receiverEmail': userEmail,
-          'timestamp': DateTime.now().millisecondsSinceEpoch,
-          'messageType': 'voice',
+          'receiverEmail': widget.todoData['assignedTo'],
+          'timestampString': formattedTimestamp,
+          'messageType': base64Audio,
           'taskId': '',
           'taskTitle': '',
-          'fileUrl': base64Audio,
+          'fileUrl': '',
           'duration': duration,
           'text':'',
-
         });
       });
 
@@ -331,10 +337,10 @@ class _ChatScreenState extends State<ChatScreen> {
           'senderId': userId,
           'senderEmail': userEmail,
           'receiverId': userId,
-          'receiverEmail': userEmail,
-          'timestamp': DateTime.now().millisecondsSinceEpoch,
-          'messageType': 'voice',
-          'fileUrl': base64Audio,
+          'receiverEmail': widget.todoData['assignedTo'],
+          'timestampString': formattedTimestamp,
+          'messageType': base64Audio,
+          'fileUrl': '',
           'duration': duration,
           'taskId': '',
           'taskTitle': '',
