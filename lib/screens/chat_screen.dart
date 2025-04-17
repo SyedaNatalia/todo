@@ -10,6 +10,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:photo_view/photo_view.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'dart:math';
+
 
 class ChatScreen extends StatefulWidget {
   final String receiverId;
@@ -40,6 +42,7 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _isRecording = false;
   String? _recordingPath;
   DateTime? _recordingStartTime;
+
 
   final AudioPlayer _audioPlayer = AudioPlayer();
   int? _currentlyPlayingId;
@@ -113,7 +116,184 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  Future<void> deleteMessage(String messageId) async {
+  void _showMessageOptionsDialog(BuildContext context, Map<String, dynamic> messageData) {
+    final TextEditingController _editController = TextEditingController(text: messageData['text']);
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Message Options'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.delete, color: Colors.red),
+                title: const Text('Delete'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _showDeleteConfirmationDialog(context, messageData);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.edit, color: Colors.blue),
+                title: const Text('Edit'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _showEditMessageDialog(context, messageData, _editController);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _showDeleteConfirmationDialog(BuildContext context, Map<String, dynamic> messageData) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Message'),
+        content: const Text('Are you sure you want to delete this message?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              deleteMessage(messageData['id']);
+            },
+            child: const Text(
+              'Delete',
+              style: TextStyle(color: Colors.red),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void showDeleteConfirmationDialog(BuildContext context, Map<String, dynamic> messageData) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Message'),
+        content: const Text('Are you sure you want to delete this message?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              deleteMessage(messageData['id']);
+            },
+            child: const Text(
+              'Delete',
+              style: TextStyle(color: Colors.red),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showEditMessageDialog(BuildContext context, Map<String, dynamic> messageData, TextEditingController editController) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Edit Message'),
+          content: TextField(
+            controller: editController,
+            decoration: const InputDecoration(
+              hintText: "Edit your message...",
+              border: OutlineInputBorder(),
+            ),
+            maxLines: 3,
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () async {
+                if (editController.text.trim().isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Message cannot be empty')),
+                  );
+                  return;
+                }
+
+                Navigator.pop(context);
+                await _updateMessage(messageData, editController.text);
+              },
+              child: const Text('Update'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _updateMessage(Map<String, dynamic> messageData, String newText) async {
+    try {
+      setState(() {
+        final index = _messages.indexWhere((msg) => msg['id'] == messageData['id']);
+        if (index != -1) {
+          _messages[index]['text'] = newText;
+          _messages[index]['isUpdated'] = true;
+        }
+      });
+
+      final response = await http.put(
+        Uri.parse('$apiBaseUrl/${messageData['id']}'),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: json.encode({
+          'id': messageData['id'],
+          'text': newText,
+          'senderId': messageData['senderId'],
+          'receiverId': messageData['receiverId'],
+          'timestamp': messageData['timestamp'],
+          'messageType': messageData['messageType'],
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final responseData = json.decode(response.body);
+        if (responseData['status'] == 'success') {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Message updated')),
+          );
+        } else {
+          throw Exception(responseData['message']);
+        }
+      } else {
+        throw Exception('Failed to update message: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Error updating message: $e');
+      setState(() {
+        final index = _messages.indexWhere((msg) => msg['id'] == messageData['id']);
+        if (index != -1) {
+          _messages[index]['text'] = messageData['text'];
+          _messages[index]['isUpdated'] = false;
+        }
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to update message: ${e.toString()}')),
+      );
+    }
+  }
+
+  Future<void> deleteMessage(int messageId) async {
 
     final userId = _auth.currentUser?.uid ?? '';
     final userEmail = _auth.currentUser?.email ?? 'Unknown';
@@ -161,11 +341,13 @@ class _ChatScreenState extends State<ChatScreen> {
 
       if (response.statusCode == 200) {
         final responseData = json.decode(response.body);
-        if (responseData['status'] == 'success') {
+       if (responseData['status'] == 'success')
+        {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Message deleted')),
           );
-        } else {
+        }
+        else {
           throw Exception(responseData['message']);
         }
       } else {
@@ -178,6 +360,7 @@ class _ChatScreenState extends State<ChatScreen> {
       );
     }
   }
+
   Future<void> _sendMessage() async {
     if (_messageController.text.isEmpty) return;
 
@@ -468,7 +651,6 @@ class _ChatScreenState extends State<ChatScreen> {
       );
     }
   }
-
   Widget _buildVoiceMessageWidget(Map<String, dynamic> messageData, int messageId, bool isMe) {
     final String? localFilePath = messageData['localFilePath'] as String?;
     final String? fileUrl = messageData['fileUrl'] as String?;
@@ -543,33 +725,44 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  Future<void> _sendVoiceNote(String filePath) async {
-    try {
-      String userId = _auth.currentUser?.uid ?? '';
-      String userEmail = _auth.currentUser?.email ?? 'Unknown';
-      int duration = _calculateDuration();
+  String generateRandomId() {
+    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+    final random = Random();
+    final result = StringBuffer();
 
+    for (var i = 0; i < 20; i++) {
+      result.write(chars[random.nextInt(chars.length)]);
+    }
+
+    return result.toString();
+  }
+
+  Future<void> sendVoiceNote(String filePath) async {
+    try {
+      String userId =  _auth.currentUser?.uid ?? '';
+      String userEmail =  _auth.currentUser?.email ?? 'Unknown';
+      int duration =  _calculateDuration();
       File audioFile = File(filePath);
       List<int> audioBytes = await audioFile.readAsBytes();
       String base64Audio = base64Encode(audioBytes);
-
-      final tempId = 'temp_${DateTime.now().millisecondsSinceEpoch}';
       final DateTime now = DateTime.now();
       String formattedTimestamp = "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')} ${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}";
       String receiverId = widget.receiverId;
 
+      int messageId = DateTime.now().millisecondsSinceEpoch;
+
       setState(() {
         _messages.add({
-          'id': tempId,
+          'id': messageId,
           'senderId': userId,
           'senderEmail': userEmail,
           'receiverId': receiverId,
           'receiverEmail': widget.todoData['assignedTo'],
           'timestamp': formattedTimestamp,
-          'messageType': 'voice',  // Changed from base64Audio to 'voice'
+          'messageType': 'voice',
           'fileUrl': base64Audio,
           'localFilePath': filePath,
-          'duration': duration.toString(),  // Convert to string for consistency
+          'duration': duration.toString(),
           'taskId': '',
           'taskTitle': '',
           'text': '',
@@ -577,23 +770,21 @@ class _ChatScreenState extends State<ChatScreen> {
         });
       });
 
-      _scrollToBottom();
-
       final response = await http.post(
         Uri.parse(apiBaseUrl),
         headers: {
           'Content-Type': 'application/json',
         },
         body: json.encode({
-          'id': '',
+          'id': messageId,
           'senderId': userId,
           'senderEmail': userEmail,
           'receiverId': receiverId,
           'receiverEmail': widget.todoData['assignedTo'],
           'timestamp': formattedTimestamp,
-          'messageType': 'voice',  // Critical: changed from base64Audio to 'voice'
+          'messageType': 'voice',
           'fileUrl': base64Audio,
-          'duration': duration.toString(),  // Convert to string for consistency
+          'duration': duration.toString(),
           'taskId': '',
           'taskTitle': '',
           'text': '',
@@ -602,33 +793,41 @@ class _ChatScreenState extends State<ChatScreen> {
 
       if (response.statusCode == 200) {
         final responseData = json.decode(response.body);
-        if (responseData['status'] == 'success') {
-          setState(() {
-            final index = _messages.indexWhere((msg) => msg['id'] == tempId);
-            if (index != -1) {
-              _messages[index] = {
-                ..._messages[index],
-                ...responseData['message'],
-                'isPending': false,
-              };
-            }
-          });
-        } else {
-          throw Exception(responseData['message']);
-        }
+        var serverIdValue = responseData['message']['id'];
+        int serverId = serverIdValue is String ? int.tryParse(serverIdValue) ?? messageId : serverIdValue ?? messageId;
+
+        final newMessage = {
+          'id': serverId,
+          'senderId': userId,
+          'senderEmail': userEmail,
+          'receiverId': receiverId,
+          'receiverEmail': widget.todoData['assignedTo'],
+          'timestamp': formattedTimestamp,
+          'messageType': 'voice',
+          'fileUrl': base64Audio,
+          'localFilePath': filePath,
+          'duration': duration.toString(),
+          'taskId': '',
+          'taskTitle': '',
+          'text': '',
+          'isPending': false,
+        };
+
+        setState(() {
+          _messages.add(newMessage);
+        });
+
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _scrollToBottom();
+        });
       } else {
         throw Exception('Failed to send voice note: ${response.statusCode}');
       }
     } catch (e) {
       print('Error sending voice note: $e');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error sending voice note: ${e.toString()}')),
+        SnackBar(content: Text('Failed to send voice note: ${e.toString()}')),
       );
-
-      setState(() {
-        _messages.removeWhere((msg) =>
-        msg['isPending'] == true && msg['localFilePath'] == filePath);
-      });
     }
   }
 
@@ -685,7 +884,7 @@ class _ChatScreenState extends State<ChatScreen> {
         if (await audioFile.exists()) {
           print(
               'Audio file exists with size: ${await audioFile.length()} bytes');
-          await _sendVoiceNote(path);
+          await sendVoiceNote(path);
         } else {
           print('Audio file does not exist at path: $path');
           ScaffoldMessenger.of(context).showSnackBar(
@@ -901,64 +1100,67 @@ class _ChatScreenState extends State<ChatScreen> {
                 return Align(
                   alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
                   child:
+
                   GestureDetector(
-                      onLongPress: () {
-                        showDialog(
-                          context: context,
-                          builder: (context) => AlertDialog(
-                            title: const Text('Delete Message'),
-                            content: const Text('Are you sure you want to delete this message?'),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.pop(context),
-                                child: const Text('Cancel'),
-                              ),
-                              TextButton(
-                                onPressed: () {
-                                  Navigator.pop(context);
-                                  deleteMessage(messageId);
-                                },
-                                child: const Text('Delete'),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
+                    onLongPress: () {
+                      if (messageType == 'text') {
+                        _showMessageOptionsDialog(context, messageData);
+                      } else {
+                        _showDeleteConfirmationDialog(context, messageData);
+                      }
+                    },
                     child: Stack(
                       children: [
-                        Container(
-                          margin: EdgeInsets.only(
-                            top: 4,
-                            bottom: 4,
-                            left: isMe ? 80 : 10,
-                            right: isMe ? 10 : 80,
+                    Container(
+                    margin: EdgeInsets.only(
+                    top: 4,
+                      bottom: 4,
+                      left: isMe ? 80 : 10,
+                      right: isMe ? 10 : 80,
+                    ),
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: isMe ? Colors.blue[300] : Colors.grey.shade300,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                    Text(
+                    isMe ? 'You' : senderEmail.split('@').first,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: isMe ? Colors.white : Colors.black87,
+                    ),
+                  ),
+                    const SizedBox(height: 5),
+                    if (messageType == 'text')
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      messageData['text'] as String? ?? '',
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: isMe ? Colors.white : Colors.black,
+                      ),
+                    ),
+                    if (messageData['isUpdated'] == true)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(
+                          'edited',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontStyle: FontStyle.italic,
+                            color: isMe ? Colors.white70 : Colors.black54,
                           ),
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: isMe ? Colors.blue[300] : Colors.grey.shade300,
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                isMe ? 'You' : senderEmail.split('@').first,
-                                style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold,
-                                    color: isMe ? Colors.white : Colors.black87
-                                ),
-                              ),
-                              const SizedBox(height: 5),
-                              if (messageType == 'text')
-                                Text(
-                                  messageData['text'] as String? ?? '',
-                                  style: TextStyle(
-                                      fontSize: 16,
-                                      color: isMe ? Colors.white : Colors.black
-                                  ),
-                                )
-                              else if (messageType == 'voice')
+                        ),
+                      ),
+                  ],
+                )
+                    else if (messageType == 'voice')
                                 _buildVoiceMessageWidget(messageData, messageId, isMe)
                               else if (messageType == 'image')
                                   _buildImageMessageWidget(messageData, isMe),
