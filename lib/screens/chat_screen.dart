@@ -243,6 +243,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Future<void> _updateMessage(Map<String, dynamic> messageData, String newText) async {
     try {
+      // Optimistically update UI
       setState(() {
         final index = _messages.indexWhere((msg) => msg['id'] == messageData['id']);
         if (index != -1) {
@@ -251,6 +252,7 @@ class _ChatScreenState extends State<ChatScreen> {
         }
       });
 
+      // Send update to API
       final response = await http.put(
         Uri.parse('$apiBaseUrl/${messageData['id']}'),
         headers: {
@@ -273,17 +275,18 @@ class _ChatScreenState extends State<ChatScreen> {
             const SnackBar(content: Text('Message updated')),
           );
         } else {
-          throw Exception(responseData['message']);
+          throw Exception(responseData['message'] ?? 'Unknown error');
         }
       } else {
         throw Exception('Failed to update message: ${response.statusCode}');
       }
     } catch (e) {
       print('Error updating message: $e');
+      // Revert UI changes on error
       setState(() {
         final index = _messages.indexWhere((msg) => msg['id'] == messageData['id']);
         if (index != -1) {
-          _messages[index]['text'] = messageData['text'];
+          _messages[index]['text'] = messageData['text']; // Revert to original
           _messages[index]['isUpdated'] = false;
         }
       });
@@ -292,7 +295,6 @@ class _ChatScreenState extends State<ChatScreen> {
       );
     }
   }
-
   Future<void> deleteMessage(int messageId) async {
 
     final userId = _auth.currentUser?.uid ?? '';
