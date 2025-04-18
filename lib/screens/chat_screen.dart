@@ -11,7 +11,8 @@ import 'package:photo_view/photo_view.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:math';
-
+import 'package:video_player/video_player.dart';
+import 'package:chewie/chewie.dart';
 
 class ChatScreen extends StatefulWidget {
   final String receiverId;
@@ -32,6 +33,85 @@ class ChatScreen extends StatefulWidget {
   @override
   _ChatScreenState createState() => _ChatScreenState();
 }
+
+class VideoPlayerWidget extends StatefulWidget {
+  final String? filePath;
+  final String? videoUrl;
+  final String? base64Video;
+
+  const VideoPlayerWidget({
+    Key? key,
+    this.filePath,
+    this.videoUrl,
+    this.base64Video,
+  }) : super(key: key);
+
+  @override
+  _VideoPlayerWidgetState createState() => _VideoPlayerWidgetState();
+}
+
+class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
+  late VideoPlayerController _videoPlayerController;
+  ChewieController? _chewieController;
+  bool _isInitialized = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeVideo();
+  }
+
+  Future<void> _initializeVideo() async {
+    try {
+      if (widget.filePath != null) {
+        _videoPlayerController = VideoPlayerController.file(File(widget.filePath!));
+      } else if (widget.videoUrl != null) {
+        _videoPlayerController = VideoPlayerController.network(widget.videoUrl!);
+      } else if (widget.base64Video != null) {
+        final tempDir = await getTemporaryDirectory();
+        final tempPath = '${tempDir.path}/temp_video.mp4';
+        await File(tempPath).writeAsBytes(base64Decode(widget.base64Video!));
+        _videoPlayerController = VideoPlayerController.file(File(tempPath));
+      } else {
+        throw Exception('No video source provided');
+      }
+
+      await _videoPlayerController.initialize();
+
+      _chewieController = ChewieController(
+        videoPlayerController: _videoPlayerController,
+        autoPlay: false,
+        looping: false,
+        aspectRatio: _videoPlayerController.value.aspectRatio,
+        placeholder: Container(color: Colors.grey),
+        autoInitialize: true,
+      );
+
+      setState(() {
+        _isInitialized = true;
+      });
+    } catch (e) {
+      print('Error initializing video: $e');
+    }
+  }
+
+  @override
+  void dispose() {
+    _videoPlayerController.dispose();
+    _chewieController?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_isInitialized) {
+      return Center(child: CircularProgressIndicator());
+    }
+
+    return Chewie(controller: _chewieController!);
+  }
+}
+
 
 class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _messageController = TextEditingController();
@@ -241,9 +321,165 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
+  Future<void> _sendMediaMessage(String filePath, String messageType) async {
+    try {
+      final userId = _auth.currentUser?.uid ?? '';
+      final userEmail = _auth.currentUser?.email ?? 'Unknown';
+      final mediaFile = File(filePath);
+      final mediaBytes = await mediaFile.readAsBytes();
+      final base64Media = base64Encode(mediaBytes);
+      final DateTime now = DateTime.now();
+      String formattedTimestamp = "${now.year}-${now.month.toString().padLeft(
+          2, '0')}-${now.day.toString().padLeft(2, '0')} ${now.hour.toString()
+          .padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:${now
+          .second.toString().padLeft(2, '0')}";
+      String receiverId = widget.receiverId;
+
+      final messageData = {
+        'senderId': userId,
+        'receiverId': receiverId,
+        'senderEmail': userEmail,
+        'receiverEmail': widget.todoData['assignedTo'],
+        'timestamp': formattedTimestamp,
+        'messageType': messageType, // 'image' or 'video'
+        'taskId': '',
+        'taskTitle': '',
+        'fileUrl': base64Media,
+        'duration': '',
+        'id': '',
+        'text': '',
+      };
+
+      final tempId = 'temp_${DateTime.now().millisecondsSinceEpoch}';
+      setState(() {
+        _messages.add({
+          ...messageData,
+          'id': tempId,
+          'localFilePath': filePath,
+          'isPending': true,
+        });
+      });
+
+      _scrollToBottom();
+
+      final response = await http.post(
+        Uri.parse(apiBaseUrl),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: json.encode({
+          'id': '',
+          'senderId': userId,
+          'senderEmail': userEmail,
+          'receiverId': receiverId,
+          'receiverEmail': widget.todoData['assignedTo'],
+          'timestamp': formattedTimestamp,
+          'messageType': messageType,
+          'fileUrl': base64Media,
+          'duration': '',
+          'taskId': '',
+          'taskTitle': '',
+          'text': '',
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final responseData = json.decode(response.body);
+        if (responseData['status'] == 'success') {
+          setState(() {
+            final index = _messages.indexWhere((msg) => msg['id'] == tempId);
+            if (index != -1) {
+              _messages[index] = {
+                ..._messages[index],
+                ...responseData['message'],
+                'isPending': false,
+                'localFilePath': filePath,
+              };
+            }
+          });
+        } else {
+          throw Exception(responseData['message']);
+        }
+      } else {
+        throw Exception('Failed to send media: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Error sending media: $e');
+      setState(() {
+        final index = _messages.indexWhere((msg) =>
+        msg['localFilePath'] == filePath &&
+            msg['isPending'] == true);
+        if (index != -1) {
+          _messages[index]['isFailed'] = true;
+        }
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to send media: ${e.toString()}')),
+      );
+    }
+  }
+
+  Future<void> pickMediaFromGallery() async {
+    final ImagePicker picker = ImagePicker();
+    final XFile? media = await picker.pickMedia(
+      imageQuality: 70,
+    );
+
+    if (media != null) {
+      await processSelectedMedia(media);
+    }
+  }
+
+  Future<void> pickVideoFromGallery() async {
+    final ImagePicker picker = ImagePicker();
+    final XFile? video = await picker.pickVideo(
+      source: ImageSource.gallery,
+      maxDuration: const Duration(minutes: 5),
+    );
+
+    if (video != null) {
+      await processSelectedMedia(video);
+    }
+  }
+
+  Future<void> pickVideoFromCamera() async {
+    final ImagePicker picker = ImagePicker();
+    final XFile? video = await picker.pickVideo(
+      source: ImageSource.camera,
+      maxDuration: const Duration(minutes: 5),
+    );
+
+    if (video != null) {
+      await processSelectedMedia(video);
+    }
+  }
+
+  Future<void> processSelectedMedia(XFile mediaFile) async {
+    try {
+      final Directory appDocDir = await getApplicationDocumentsDirectory();
+      final String mediaPath = '${appDocDir.path}/media_${DateTime.now().millisecondsSinceEpoch}.${mediaFile.path.split('.').last}';
+      final File media = File(mediaPath);
+      await media.writeAsBytes(await mediaFile.readAsBytes());
+
+      // Determine if it's an image or video
+      final messageType = mediaFile.path.toLowerCase().endsWith('.mp4') ||
+          mediaFile.path.toLowerCase().endsWith('.mov') ||
+          mediaFile.path.toLowerCase().endsWith('.avi')
+          ? 'video'
+          : 'image';
+
+      await _sendMediaMessage(mediaPath, messageType);
+    } catch (e) {
+      print('Error processing media: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to process media: ${e.toString()}')),
+      );
+    }
+  }
+
   Future<void> _updateMessage(Map<String, dynamic> messageData, String newText) async {
     try {
-      // Optimistically update UI
       setState(() {
         final index = _messages.indexWhere((msg) => msg['id'] == messageData['id']);
         if (index != -1) {
@@ -252,7 +488,6 @@ class _ChatScreenState extends State<ChatScreen> {
         }
       });
 
-      // Send update to API
       final response = await http.put(
         Uri.parse('$apiBaseUrl/${messageData['id']}'),
         headers: {
@@ -282,7 +517,6 @@ class _ChatScreenState extends State<ChatScreen> {
       }
     } catch (e) {
       print('Error updating message: $e');
-      // Revert UI changes on error
       setState(() {
         final index = _messages.indexWhere((msg) => msg['id'] == messageData['id']);
         if (index != -1) {
@@ -295,6 +529,7 @@ class _ChatScreenState extends State<ChatScreen> {
       );
     }
   }
+  
   Future<void> deleteMessage(int messageId) async {
 
     final userId = _auth.currentUser?.uid ?? '';
@@ -653,6 +888,62 @@ class _ChatScreenState extends State<ChatScreen> {
       );
     }
   }
+
+  Widget _buildVideoMessageWidget(Map<String, dynamic> messageData, bool isMe) {
+    final String? localFilePath = messageData['localFilePath'] as String?;
+    final String? fileUrl = messageData['fileUrl'] as String?;
+
+    Widget videoWidget;
+
+    if (localFilePath != null && File(localFilePath).existsSync()) {
+      videoWidget = VideoPlayerWidget(filePath: localFilePath);
+    } else if (fileUrl != null && fileUrl.isNotEmpty) {
+      if (!fileUrl.startsWith('http')) {
+        try {
+          videoWidget = VideoPlayerWidget(base64Video: fileUrl);
+        } catch (e) {
+          print('Error decoding base64 video: $e');
+          videoWidget = _buildVideoPlaceholder();
+        }
+      } else {
+        videoWidget = VideoPlayerWidget(videoUrl: fileUrl);
+      }
+    } else {
+      videoWidget = _buildVideoPlaceholder();
+    }
+
+    return GestureDetector(
+      onTap: () {
+        // You might want to implement full-screen video playback here
+      },
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          width: 300,
+          height: 200,
+          child: videoWidget,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildVideoPlaceholder() {
+    return Container(
+      width: 300,
+      height: 200,
+      color: Colors.grey.shade300,
+      child: const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.videocam_off, size: 50, color: Colors.grey),
+            Text('Video not available'),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildVoiceMessageWidget(Map<String, dynamic> messageData, int messageId, bool isMe) {
     final String? localFilePath = messageData['localFilePath'] as String?;
     final String? fileUrl = messageData['fileUrl'] as String?;
@@ -980,12 +1271,11 @@ class _ChatScreenState extends State<ChatScreen> {
     return '$minutes:${seconds.toString().padLeft(2, '0')}';
   }
 
-  Future<void> pickImageFromGallery() async {
+    Future<void> pickImageFromGallery() async {
     final ImagePicker picker = ImagePicker();
     final XFile? image = await picker.pickImage(source: ImageSource.gallery);
-
     if (image != null) {
-      processSelectedImage(image);
+    processSelectedImage(image);
     }
   }
 
@@ -1137,35 +1427,39 @@ class _ChatScreenState extends State<ChatScreen> {
                     ),
                   ),
                     const SizedBox(height: 5),
-                    if (messageType == 'text')
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      messageData['text'] as String? ?? '',
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: isMe ? Colors.white : Colors.black,
-                      ),
-                    ),
-                    if (messageData['isUpdated'] == true)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 4),
-                        child: Text(
-                          'edited',
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontStyle: FontStyle.italic,
-                            color: isMe ? Colors.white70 : Colors.black54,
-                          ),
-                        ),
-                      ),
-                  ],
-                )
-                    else if (messageType == 'voice')
-                                _buildVoiceMessageWidget(messageData, messageId, isMe)
-                              else if (messageType == 'image')
-                                  _buildImageMessageWidget(messageData, isMe),
+
+                          if (messageType == 'text')
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  messageData['text'] as String? ?? '',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    color: isMe ? Colors.white : Colors.black,
+                                  ),
+                                ),
+                                if (messageData['isUpdated'] == true)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 4),
+                                    child: Text(
+                                      'edited',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontStyle: FontStyle.italic,
+                                        color: isMe ? Colors.white70 : Colors.black54,
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            )
+                          else if (messageType == 'voice')
+                            _buildVoiceMessageWidget(messageData, messageId, isMe)
+                          else if (messageType == 'image')
+                              _buildImageMessageWidget(messageData, isMe)
+                            else if (messageType == 'video')
+                                _buildVideoMessageWidget(messageData, isMe),
+
                               Align(
                                 alignment: Alignment.bottomRight,
                                 child: Row(
@@ -1256,9 +1550,10 @@ class _ChatScreenState extends State<ChatScreen> {
                   ),
                 ),
 
+                // Replace your current IconButton for camera/gallery with this:
                 IconButton(
-                  icon: const Icon(Icons.camera_alt, color: Colors.blueAccent),
-                  tooltip: 'Take photo or choose from gallery',
+                  icon: const Icon(Icons.attach_file, color: Colors.blueAccent),
+                  tooltip: 'Attach media',
                   onPressed: () {
                     showDialog(
                       context: context,
@@ -1268,42 +1563,76 @@ class _ChatScreenState extends State<ChatScreen> {
                           content: SingleChildScrollView(
                             child: ListBody(
                               children: [
+                                // Gallery photos
                                 GestureDetector(
                                   child: Padding(
                                     padding: const EdgeInsets.all(8.0),
                                     child: Row(
                                       children: [
-                                        Icon(Icons.photo_library,
-                                            color: Colors.blueAccent),
+                                        Icon(Icons.photo_library, color: Colors.blueAccent),
                                         SizedBox(width: 10),
-                                        Text('Gallery'),
+                                        Text('Photo from Gallery'),
                                       ],
                                     ),
                                   ),
                                   onTap: () {
-                                    pickImageFromGallery();
+                                    pickMediaFromGallery();
                                     Navigator.of(context).pop();
                                   },
                                 ),
-                                Padding(
-                                  padding: const EdgeInsets.only(
-                                      top: 12, bottom: 12),
-                                  child: Divider(height: 1),
-                                ),
+
+                                // Camera photos
                                 GestureDetector(
                                   child: Padding(
                                     padding: const EdgeInsets.all(8.0),
                                     child: Row(
                                       children: [
-                                        Icon(Icons.camera_alt,
-                                            color: Colors.blueAccent),
+                                        Icon(Icons.camera_alt, color: Colors.blueAccent),
                                         SizedBox(width: 10),
-                                        Text('Camera'),
+                                        Text('Take Photo'),
                                       ],
                                     ),
                                   ),
                                   onTap: () {
                                     pickImageFromCamera();
+                                    Navigator.of(context).pop();
+                                  },
+                                ),
+
+                                Divider(),
+
+                                // Gallery videos
+                                GestureDetector(
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(8.0),
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.video_library, color: Colors.blueAccent),
+                                        SizedBox(width: 10),
+                                        Text('Video from Gallery'),
+                                      ],
+                                    ),
+                                  ),
+                                  onTap: () {
+                                    pickVideoFromGallery();
+                                    Navigator.of(context).pop();
+                                  },
+                                ),
+
+                                // Camera videos
+                                GestureDetector(
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(8.0),
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.videocam, color: Colors.blueAccent),
+                                        SizedBox(width: 10),
+                                        Text('Record Video'),
+                                      ],
+                                    ),
+                                  ),
+                                  onTap: () {
+                                    pickVideoFromCamera();
                                     Navigator.of(context).pop();
                                   },
                                 ),
@@ -1315,6 +1644,66 @@ class _ChatScreenState extends State<ChatScreen> {
                     );
                   },
                 ),
+
+                // IconButton(
+                //   icon: const Icon(Icons.camera_alt, color: Colors.blueAccent),
+                //   tooltip: 'Take photo or choose from gallery',
+                //   onPressed: () {
+                //     showDialog(
+                //       context: context,
+                //       builder: (BuildContext context) {
+                //         return AlertDialog(
+                //           title: Text('Choose an option'),
+                //           content: SingleChildScrollView(
+                //             child: ListBody(
+                //               children: [
+                //                 GestureDetector(
+                //                   child: Padding(
+                //                     padding: const EdgeInsets.all(8.0),
+                //                     child: Row(
+                //                       children: [
+                //                         Icon(Icons.photo_library,
+                //                             color: Colors.blueAccent),
+                //                         SizedBox(width: 10),
+                //                         Text('Gallery'),
+                //                       ],
+                //                     ),
+                //                   ),
+                //                   onTap: () {
+                //                     pickImageFromGallery();
+                //                     Navigator.of(context).pop();
+                //                   },
+                //                 ),
+                //                 Padding(
+                //                   padding: const EdgeInsets.only(
+                //                       top: 12, bottom: 12),
+                //                   child: Divider(height: 1),
+                //                 ),
+                //                 GestureDetector(
+                //                   child: Padding(
+                //                     padding: const EdgeInsets.all(8.0),
+                //                     child: Row(
+                //                       children: [
+                //                         Icon(Icons.camera_alt,
+                //                             color: Colors.blueAccent),
+                //                         SizedBox(width: 10),
+                //                         Text('Camera'),
+                //                       ],
+                //                     ),
+                //                   ),
+                //                   onTap: () {
+                //                     pickImageFromCamera();
+                //                     Navigator.of(context).pop();
+                //                   },
+                //                 ),
+                //               ],
+                //             ),
+                //           ),
+                //         );
+                //       },
+                //     );
+                //   },
+                // ),
 
                 const SizedBox(width: 8),
 
@@ -1437,7 +1826,6 @@ class _ChatScreenState extends State<ChatScreen> {
         fit: BoxFit.cover,
       );
     } else if (fileUrl != null && fileUrl.isNotEmpty) {
-      // Check if fileUrl is a base64 string (not starting with http)
       if (!fileUrl.startsWith('http')) {
         try {
           imageWidget = Image.memory(
