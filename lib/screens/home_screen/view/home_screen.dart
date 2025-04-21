@@ -23,17 +23,15 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final TextEditingController _taskController = TextEditingController();
-
   final String _staticAvatarAsset = 'assets/images/avatar_image.webp';
-
   final Color IndigoBlueColor = const Color(0xFF79B2EC);
+
 
   bool _isLoading = false;
   bool _isRefreshing = false;
   bool _isLoadingContent = true;
 
   String? _profileImagePath;
-
   String? selectedUser;
   DateTime? _selectedDueDate;
 
