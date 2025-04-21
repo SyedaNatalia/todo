@@ -1,19 +1,13 @@
-//pkg add
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-//pkg add
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
-
-// class ProfileScreen extends StatelessWidget {
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
 
-  //add code
   @override
   _ProfileScreenState createState() => _ProfileScreenState();
 }
@@ -88,9 +82,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-
-
-
   Future<String?> _getUserRole(String uid) async {
     try {
       DocumentSnapshot userDoc =
@@ -123,22 +114,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-    //         Center(
-    //           child: CircleAvatar(
-    //             radius: 50,
-    //             // backgroundImage: AssetImage('assets/images/profile_placeholder.png'),
-    //           ),
-    // ),
 
-            //center
+            // In the _ProfileScreenState class, modify the CircleAvatar in the build method:
+
             Center(
               child: Stack(
                 children: [
                   CircleAvatar(
                     radius: 50,
-                    backgroundImage: _profileImage != null
-                        ? FileImage(_profileImage!)
-                        : const AssetImage('assets/images/profile_placeholder.png') as ImageProvider,
+                    backgroundImage: const AssetImage('assets/images/avatar_image.webp'),
+                    backgroundColor: Colors.transparent,
                   ),
                   Positioned(
                     bottom: 0,
@@ -159,10 +144,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ],
               ),
             ),
-
-
-
-
 
             const SizedBox(height: 20),
             _buildProfileInfo('Email', user?.email ?? 'Not Available'),

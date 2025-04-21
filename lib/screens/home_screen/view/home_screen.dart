@@ -19,64 +19,66 @@ class HomeScreen extends StatefulWidget {
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
+
 class _HomeScreenState extends State<HomeScreen> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final TextEditingController _taskController = TextEditingController();
 
-  final Color IndigoBlueColor  = const Color(0xFF79B2EC);
+  final String _staticAvatarAsset = 'assets/images/avatar_image.webp';
+
+  final Color IndigoBlueColor = const Color(0xFF79B2EC);
 
   bool _isLoading = false;
   bool _isRefreshing = false;
-  bool _isInitialLoading = true;
+  bool _isLoadingContent = true;
 
   String? _profileImagePath;
 
   String? selectedUser;
   DateTime? _selectedDueDate;
 
-  //user current email
+  // User current email
   String get currentUserEmail => FirebaseAuth.instance.currentUser?.email ?? '';
 
   @override
   void initState() {
     super.initState();
-    _initializeHomeScreen();
+    _loadProfileImage();
+    _loadRemainingContent();
   }
 
-  Future<void> _initializeHomeScreen() async {
+  Future<void> _loadProfileImage() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      setState(() {
+        _profileImagePath = prefs.getString('profile_image_path');
+      });
+    } catch (e) {
+      print('Error loading profile image: $e');
+    }
+  }
+
+  Future<void> _loadRemainingContent() async {
     try {
       await Future.delayed(const Duration(milliseconds: 500));
-      await _loadProfileImage();
+
       setState(() {
-        _isInitialLoading = false;
+        _isLoadingContent = false;
       });
     } catch (e) {
       setState(() {
-        _isInitialLoading = false;
+        _isLoadingContent = false;
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Error initializing home screen',
+            'Error loading content',
             style: GoogleFonts.poppins(),
           ),
           backgroundColor: Colors.red,
         ),
       );
     }
-  }
-
-  Future<void> _loadProfileImage() async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      _profileImagePath = prefs.getString('profile_image_path');
-    });
-  }
-
-  @override
-  void dispose() {
-    _taskController.dispose();
-    super.dispose();
   }
 
   Future<void> _selectDate(BuildContext context, StateSetter setDialogState) async {
@@ -435,35 +437,15 @@ class _HomeScreenState extends State<HomeScreen> {
       },
     );
   }
+
   @override
   Widget build(BuildContext context) {
-    if (_isInitialLoading) {
-      return Scaffold(
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              CircularProgressIndicator(
-                color: IndigoBlueColor,
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'Loading...',
-                style: GoogleFonts.poppins(
-                  fontSize: 16,
-                  color: IndigoBlueColor,
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
     User? user = FirebaseAuth.instance.currentUser;
     String userEmail = user?.email ?? '';
+
     return Scaffold(
-      drawer: Drawer(
-        child: ListView(
+        drawer: Drawer(
+          child: ListView(
           padding: EdgeInsets.zero,
           children: [
             DrawerHeader(
@@ -494,15 +476,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       },
                       child: CircleAvatar(
                         radius: 50,
-                        backgroundImage: _profileImagePath != null
-                            ? FileImage(File(_profileImagePath!))
-                            : null,
-                        backgroundColor: _profileImagePath == null
-                            ? Colors.grey.shade300
-                            : Colors.transparent,
-                        child: _profileImagePath == null
-                            ? Icon(Icons.person, color: Colors.grey.shade600)
-                            : null,
+                        backgroundImage: AssetImage(_staticAvatarAsset),
+                        backgroundColor: Colors.transparent,
                       ),
                     ),
                   ),
@@ -650,7 +625,22 @@ class _HomeScreenState extends State<HomeScreen> {
           stream: FirebaseFirestore.instance.collection('users').doc(user?.uid).snapshots(),
           builder: (context, snapshot) {
             if (!snapshot.hasData || !snapshot.data!.exists) {
-              return const SizedBox.shrink();
+
+              return AppBar(
+                backgroundColor: IndigoBlueColor,
+                shape: const RoundedRectangleBorder(
+                  borderRadius: BorderRadius.vertical(bottom: Radius.circular(35)),
+                ),
+                title: Text(
+                  "HRM",
+                  style: GoogleFonts.poppins(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black,
+                  ),
+                ),
+                centerTitle: true,
+              );
             }
 
             var userData = snapshot.data!;
@@ -686,6 +676,7 @@ class _HomeScreenState extends State<HomeScreen> {
               centerTitle: true,
               flexibleSpace: Stack(
                 children: [
+
                   Positioned(
                     bottom: 15,
                     left: 18,
@@ -698,15 +689,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       },
                       child: CircleAvatar(
                         radius: 50,
-                        backgroundImage: _profileImagePath != null
-                            ? FileImage(File(_profileImagePath!))
-                            : null,
-                        backgroundColor: _profileImagePath == null
-                            ? Colors.grey.shade300
-                            : Colors.transparent,
-                        child: _profileImagePath == null
-                            ? Icon(Icons.person, color: Colors.grey.shade600)
-                            : null,
+                        backgroundImage: AssetImage(_staticAvatarAsset),
+                        backgroundColor: Colors.transparent,
                       ),
                     ),
                   ),
@@ -762,7 +746,26 @@ class _HomeScreenState extends State<HomeScreen> {
           },
         ),
       ),
-      body: Padding(
+      body: _isLoadingContent
+          ? Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircularProgressIndicator(
+              color: IndigoBlueColor,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Loading content...',
+              style: GoogleFonts.poppins(
+                fontSize: 16,
+                color: IndigoBlueColor,
+              ),
+            ),
+          ],
+        ),
+      )
+          : Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -815,6 +818,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
       floatingActionButton: StreamBuilder<DocumentSnapshot>(
+
         stream: FirebaseFirestore.instance.collection('users').doc(FirebaseAuth.instance.currentUser?.uid).snapshots(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
@@ -854,6 +858,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
+
   Widget _buildTaskCard(
       BuildContext context, {
         required String title,
