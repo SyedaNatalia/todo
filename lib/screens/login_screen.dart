@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/auth_service.dart';
-import 'home_screen/view/home_screen.dart';
+import 'home_screen.dart';
 import 'signup_screen.dart';
+
+import 'package:provider/provider.dart';
+import '../providers/auth_provider.dart' as app_provider;
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -197,31 +200,34 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
+  // Replace the _buildLoginButton() method with this:
   Widget _buildLoginButton() {
-    return ElevatedButton(
-      onPressed: _isLoading ? null : _login,
-      style: ElevatedButton.styleFrom(
-        backgroundColor: Colors.white,
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
-      ),
-
-      child: _isLoading
-          ? const CircularProgressIndicator(color: Color(0xFF5D6EFF))
-          : const Text(
-        'Sign in',
-        style: TextStyle(
-          color: Color(0xFF5D6EFF),
-          fontWeight: FontWeight.bold,
-          fontSize: 16,
-        ),
-      ),
+    return Consumer<app_provider.AuthProvider>(
+      builder: (context, authProvider, child) {
+        // Use local state for loading indicator
+        return ElevatedButton(
+          onPressed: _isLoading ? null : _login,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+          child: _isLoading
+              ? const CircularProgressIndicator(color: Color(0xFF5D6EFF))
+              : const Text(
+            'Sign in',
+            style: TextStyle(
+              color: Color(0xFF5D6EFF),
+              fontWeight: FontWeight.bold,
+              fontSize: 16,
+            ),
+          ),
+        );
+      },
     );
   }
-
-
 
   Widget _buildSignUpPrompt() {
     return Row(
@@ -249,7 +255,6 @@ class _LoginScreenState extends State<LoginScreen> {
       ],
     );
   }
-
 
   void _login() async {
     if (_formKey.currentState!.validate()) {

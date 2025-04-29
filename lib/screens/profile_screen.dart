@@ -114,9 +114,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-
-            // In the _ProfileScreenState class, modify the CircleAvatar in the build method:
-
             Center(
               child: Stack(
                 children: [
@@ -178,6 +175,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
     );
   }
+
   Widget _buildProfileInfo(String label, String value) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8.0),

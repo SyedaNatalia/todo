@@ -12,18 +12,30 @@ class TaskProvider extends ChangeNotifier {
   List<Task> _pendingTasks = [];
   List<Task> _overdueTasks = [];
   bool _isLoading = false;
+  String? _errorMessage;
 
+  // Getters
   List<Task> get completedTasks => _completedTasks;
   List<Task> get pendingTasks => _pendingTasks;
   List<Task> get overdueTasks => _overdueTasks;
   bool get isLoading => _isLoading;
+  String? get errorMessage => _errorMessage;
 
   String get currentUserEmail => _auth.currentUser?.email ?? '';
   String get currentUserId => _auth.currentUser?.uid ?? '';
 
+  // Initialize by fetching tasks
+  TaskProvider() {
+    fetchTasks();
+  }
+
   // Fetch tasks for the current user
   Future<void> fetchTasks() async {
+    if (currentUserEmail.isEmpty) return;
+
     _setLoading(true);
+    _errorMessage = null;
+
     try {
       // Fetch completed tasks
       final completedSnapshot = await _firestore
@@ -62,7 +74,31 @@ class TaskProvider extends ChangeNotifier {
 
       notifyListeners();
     } catch (e) {
-      print('Error fetching tasks: $e');
+      _errorMessage = 'Error fetching tasks: $e';
+      print(_errorMessage);
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  // Fetch tasks for a specific user (for managers/team leads)
+  Future<List<Task>> fetchTasksForUser(String userEmail) async {
+    _setLoading(true);
+    try {
+      final tasksSnapshot = await _firestore
+          .collection('todos')
+          .where('assignedTo', isEqualTo: userEmail)
+          .get();
+
+      final tasks = tasksSnapshot.docs
+          .map((doc) => Task.fromFirestore(doc.data(), doc.id))
+          .toList();
+
+      return tasks;
+    } catch (e) {
+      _errorMessage = 'Error fetching tasks for user: $e';
+      print(_errorMessage);
+      return [];
     } finally {
       _setLoading(false);
     }
@@ -75,6 +111,8 @@ class TaskProvider extends ChangeNotifier {
     DateTime? dueDate,
   }) async {
     _setLoading(true);
+    _errorMessage = null;
+
     try {
       final pairString = '$assignedTo+$currentUserEmail';
       final Map<String, dynamic> taskData = {
@@ -95,7 +133,8 @@ class TaskProvider extends ChangeNotifier {
       await _firestore.collection('todos').add(taskData);
       await fetchTasks(); // Refresh tasks
     } catch (e) {
-      print('Error adding task: $e');
+      _errorMessage = 'Error adding task: $e';
+      print(_errorMessage);
       rethrow;
     } finally {
       _setLoading(false);
@@ -110,6 +149,8 @@ class TaskProvider extends ChangeNotifier {
     DateTime? dueDate,
   }) async {
     _setLoading(true);
+    _errorMessage = null;
+
     try {
       final pairString = '$assignedTo+$currentUserEmail';
       final Map<String, dynamic> taskData = {
@@ -128,7 +169,8 @@ class TaskProvider extends ChangeNotifier {
       await _firestore.collection('todos').doc(taskId).update(taskData);
       await fetchTasks(); // Refresh tasks
     } catch (e) {
-      print('Error updating task: $e');
+      _errorMessage = 'Error updating task: $e';
+      print(_errorMessage);
       rethrow;
     } finally {
       _setLoading(false);
@@ -138,11 +180,14 @@ class TaskProvider extends ChangeNotifier {
   // Delete a task
   Future<void> deleteTask(String taskId) async {
     _setLoading(true);
+    _errorMessage = null;
+
     try {
       await _firestore.collection('todos').doc(taskId).delete();
       await fetchTasks(); // Refresh tasks
     } catch (e) {
-      print('Error deleting task: $e');
+      _errorMessage = 'Error deleting task: $e';
+      print(_errorMessage);
       rethrow;
     } finally {
       _setLoading(false);
@@ -152,6 +197,8 @@ class TaskProvider extends ChangeNotifier {
   // Mark task as done
   Future<void> markTaskAsDone(String taskId) async {
     _setLoading(true);
+    _errorMessage = null;
+
     try {
       await _firestore.collection('todos').doc(taskId).update({
         'isDone': true,
@@ -160,15 +207,54 @@ class TaskProvider extends ChangeNotifier {
       });
       await fetchTasks(); // Refresh tasks
     } catch (e) {
-      print('Error marking task as done: $e');
+      _errorMessage = 'Error marking task as done: $e';
+      print(_errorMessage);
       rethrow;
     } finally {
       _setLoading(false);
     }
   }
 
+  // Mark task as pending again
+  Future<void> markTaskAsPending(String taskId) async {
+    _setLoading(true);
+    _errorMessage = null;
+
+    try {
+      await _firestore.collection('todos').doc(taskId).update({
+        'isDone': false,
+        'status': 'pending',
+        'updatedAt': Timestamp.now(),
+      });
+      await fetchTasks(); // Refresh tasks
+    } catch (e) {
+      _errorMessage = 'Error marking task as pending: $e';
+      print(_errorMessage);
+      rethrow;
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  // Stream tasks for real-time updates
+  Stream<List<Task>> streamTasks() {
+    return _firestore
+        .collection('todos')
+        .where('assignedTo', isEqualTo: currentUserEmail)
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+        .map((doc) => Task.fromFirestore(doc.data(), doc.id))
+        .toList());
+  }
+
   void _setLoading(bool value) {
     _isLoading = value;
+    notifyListeners();
+  }
+
+  // Clear error messages
+  void clearError() {
+    _errorMessage = null;
     notifyListeners();
   }
 }

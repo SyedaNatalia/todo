@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/auth_service.dart';
-import 'home_screen/view/home_screen.dart';
+import 'home_screen.dart';
 import 'login_screen.dart';
+
+import 'package:provider/provider.dart';
+import '../providers/auth_provider.dart' as app_provider;
 
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key});
@@ -275,29 +278,34 @@ class _SignUpScreenState extends State<SignUpScreen> {
     );
   }
 
+  // Replace the _buildSignUpButton() method with this:
   Widget _buildSignUpButton() {
-            return ElevatedButton(
-                onPressed: _isLoading ? null : _signUp,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              child: _isLoading
-                  ? const CircularProgressIndicator(color: Color(0xFF5D6EFF))
-                  : const Text(
-                'Sign Up',
-                style: TextStyle(
-                  color: Color(0xFF5D6EFF),
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                ),
-              ),
-            );
+    return Consumer<app_provider.AuthProvider>(
+      builder: (context, authProvider, child) {
+        return ElevatedButton(
+          onPressed: _isLoading ? null : _signUp,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+          child: _isLoading
+              ? const CircularProgressIndicator(color: Color(0xFF5D6EFF))
+              : const Text(
+            'Sign Up',
+            style: TextStyle(
+              color: Color(0xFF5D6EFF),
+              fontWeight: FontWeight.bold,
+              fontSize: 16,
+            ),
+          ),
+        );
+      },
+    );
   }
-              // Login Button
+
   Widget _buildLoginPrompt() {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,

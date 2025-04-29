@@ -5,14 +5,13 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:new_project/screens/chat_home.dart';
-import 'package:new_project/screens/completed_tak/view/completed_task.dart';
+import 'package:new_project/screens/completed_task.dart';
 import 'package:new_project/screens/login_screen.dart';
 import 'package:new_project/screens/overdue_task.dart';
-import 'package:new_project/screens/pending_task/view/pending_task.dart';
+import 'package:new_project/screens/pending_task.dart';
 import 'package:new_project/screens/profile_screen.dart';
 import 'package:new_project/services/auth_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -109,6 +108,7 @@ class _HomeScreenState extends State<HomeScreen> {
       });
     }
   }
+
   Future<void> deleteTask(String taskId) async {
     try {
       String? currentUserId = FirebaseAuth.instance.currentUser?.uid;
@@ -157,6 +157,7 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
   }
+
   Future<void> showTaskDialog({
     String? taskId,
     String? currentTask,
