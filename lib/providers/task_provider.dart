@@ -226,7 +226,7 @@ class TaskProvider extends ChangeNotifier {
         'status': 'pending',
         'updatedAt': Timestamp.now(),
       });
-      await fetchTasks(); // Refresh tasks
+      await fetchTasks();
     } catch (e) {
       _errorMessage = 'Error marking task as pending: $e';
       print(_errorMessage);
@@ -252,9 +252,9 @@ class TaskProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Clear error messages
   void clearError() {
     _errorMessage = null;
     notifyListeners();
   }
 }
+

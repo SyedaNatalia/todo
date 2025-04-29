@@ -91,6 +91,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       return 'Not Available';
     }
   }
+
   Future<String?> _getUserFirstName(String uid) async {
     try {
       DocumentSnapshot userDoc =
@@ -158,6 +159,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               },
             ),
             const SizedBox(height: 10),
+
             FutureBuilder<String?>(
               future: _getUserFirstName(user?.uid ?? ''),
               builder: (context, snapshot) {

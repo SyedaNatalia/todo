@@ -1,6 +1,8 @@
+import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user_model.dart';
 
@@ -8,6 +10,8 @@ class UserProvider extends ChangeNotifier {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
+  // State variables
+  File? _profileImageFile;
   UserModel? _currentUser;
   List<UserModel> _users = [];
   bool _isLoading = false;
@@ -15,18 +19,17 @@ class UserProvider extends ChangeNotifier {
   String? _errorMessage;
 
   // Getters
+  File? get profileImageFile => _profileImageFile;
   UserModel? get currentUser => _currentUser;
   List<UserModel> get users => _users;
   bool get isLoading => _isLoading;
   String? get profileImagePath => _profileImagePath;
   String? get errorMessage => _errorMessage;
-
   String get currentUserEmail => _auth.currentUser?.email ?? '';
   String get currentUserId => _auth.currentUser?.uid ?? '';
 
   // Constructor
   UserProvider() {
-    // Listen to auth state changes
     _auth.authStateChanges().listen((User? user) {
       if (user != null) {
         initialize();
@@ -40,23 +43,25 @@ class UserProvider extends ChangeNotifier {
   // Initialize user data
   Future<void> initialize() async {
     if (_auth.currentUser == null) return;
+    await loadCurrentUserData();
+    await fetchUsers();
+  }
 
+  // Load both user data and profile image
+  Future<void> loadCurrentUserData() async {
     _setLoading(true);
-    _errorMessage = null;
-
     try {
       await fetchCurrentUser();
       await loadProfileImage();
-      await fetchUsers();
     } catch (e) {
-      _errorMessage = 'Error initializing user provider: $e';
+      _errorMessage = 'Error loading user data: $e';
       print(_errorMessage);
     } finally {
       _setLoading(false);
     }
   }
 
-  // Fetch current user data
+  // Fetch current user from Firestore
   Future<void> fetchCurrentUser() async {
     if (_auth.currentUser == null) return;
 
@@ -76,17 +81,13 @@ class UserProvider extends ChangeNotifier {
     }
   }
 
-  // Fetch all users
+  // Fetch all users from Firestore
   Future<void> fetchUsers() async {
     try {
-      final querySnapshot = await _firestore
-          .collection('users')
-          .get();
-
+      final querySnapshot = await _firestore.collection('users').get();
       _users = querySnapshot.docs
           .map((doc) => UserModel.fromFirestore(doc.data(), doc.id))
           .toList();
-
       notifyListeners();
     } catch (e) {
       _errorMessage = 'Error fetching users: $e';
@@ -94,11 +95,14 @@ class UserProvider extends ChangeNotifier {
     }
   }
 
-  // Load profile image from SharedPreferences
+  // Load profile image path from SharedPreferences
   Future<void> loadProfileImage() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       _profileImagePath = prefs.getString('profile_image_path');
+      if (_profileImagePath != null) {
+        _profileImageFile = File(_profileImagePath!);
+      }
       notifyListeners();
     } catch (e) {
       _errorMessage = 'Error loading profile image: $e';
@@ -106,7 +110,24 @@ class UserProvider extends ChangeNotifier {
     }
   }
 
-  // Save profile image path to SharedPreferences
+  // Image picker methods
+  Future<void> pickProfileImage(ImageSource source) async {
+    try {
+      final picker = ImagePicker();
+      final pickedFile = await picker.pickImage(source: source);
+
+      if (pickedFile != null) {
+        _profileImageFile = File(pickedFile.path);
+        await saveProfileImage(pickedFile.path);
+        notifyListeners();
+      }
+    } catch (e) {
+      _errorMessage = 'Error picking image: $e';
+      notifyListeners();
+    }
+  }
+
+  // Save image path to SharedPreferences
   Future<void> saveProfileImage(String path) async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -117,6 +138,13 @@ class UserProvider extends ChangeNotifier {
       _errorMessage = 'Error saving profile image: $e';
       print(_errorMessage);
     }
+  }
+
+  // Clear profile image
+  void clearProfileImage() {
+    _profileImageFile = null;
+    _profileImagePath = null;
+    notifyListeners();
   }
 
   // Update user profile
@@ -133,24 +161,12 @@ class UserProvider extends ChangeNotifier {
     try {
       final Map<String, dynamic> updateData = {};
 
-      if (name != null && name.isNotEmpty) {
-        updateData['name'] = name;
-      }
-
-      if (role != null && role.isNotEmpty) {
-        updateData['role'] = role;
-      }
-
-      if (bio != null && bio.isNotEmpty) {
-        updateData['bio'] = bio;
-      }
+      if (name != null && name.isNotEmpty) updateData['name'] = name;
+      if (role != null && role.isNotEmpty) updateData['role'] = role;
+      if (bio != null && bio.isNotEmpty) updateData['bio'] = bio;
 
       if (updateData.isNotEmpty) {
-        await _firestore
-            .collection('users')
-            .doc(currentUserId)
-            .update(updateData);
-
+        await _firestore.collection('users').doc(currentUserId).update(updateData);
         await fetchCurrentUser(); // Refresh user data
       }
     } catch (e) {
@@ -172,13 +188,11 @@ class UserProvider extends ChangeNotifier {
       case 'Team Lead':
         return _users.where((user) =>
         (user.role == 'Employee' || user.role == 'Intern') &&
-            user.email != currentUserEmail
-        ).toList();
+            user.email != currentUserEmail).toList();
       case 'Employee':
         return _users.where((user) =>
         user.role == 'Intern' &&
-            user.email != currentUserEmail
-        ).toList();
+            user.email != currentUserEmail).toList();
       default:
         return [];
     }
@@ -196,7 +210,7 @@ class UserProvider extends ChangeNotifier {
     return ['Manager', 'Team Lead'].contains(_currentUser!.role);
   }
 
-  // Create a new user (for admin functionality)
+  // Create a new user (admin functionality)
   Future<void> createUser({
     required String email,
     required String name,
@@ -212,14 +226,12 @@ class UserProvider extends ChangeNotifier {
     _errorMessage = null;
 
     try {
-      // Create user document in Firestore
       await _firestore.collection('users').add({
         'email': email,
         'name': name,
         'role': role,
         'createdAt': Timestamp.now(),
       });
-
       await fetchUsers(); // Refresh user list
     } catch (e) {
       _errorMessage = 'Error creating user: $e';
@@ -239,12 +251,12 @@ class UserProvider extends ChangeNotifier {
     }
   }
 
+  // Helper methods
   void _setLoading(bool value) {
     _isLoading = value;
     notifyListeners();
   }
 
-  // Clear error messages
   void clearError() {
     _errorMessage = null;
     notifyListeners();
