@@ -83,13 +83,15 @@ class AuthProvider extends ChangeNotifier {
   }
 
   // Sign up method that handles form validation and navigation
-  Future<void> signup(BuildContext context) async {
+  Future<void> signup(BuildContext context, [Map<String, dynamic>? additionalData]) async {
     if (!signupFormKey.currentState!.validate()) return;
 
     final userData = {
       'firstName': firstNameController.text.trim(),
       'lastName': lastNameController.text.trim(),
-      'role': 'user', // Default role
+      'role': additionalData != null && additionalData['role'] != null
+          ? additionalData['role']
+          : 'user', // Default role if not provided
     };
 
     final success = await signUp(

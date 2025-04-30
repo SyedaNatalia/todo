@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import 'login_screen.dart';
-import 'home_screen.dart';
 
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key});
@@ -27,8 +26,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final authProvider = Provider.of<AuthProvider>(context);
-
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
@@ -53,7 +50,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   onPressed: () => Navigator.of(context).pop(),
                 ),
               ),
-              _buildRegistrationForm(authProvider),
+              _buildRegistrationForm(),
             ],
           ),
         ),
@@ -61,54 +58,58 @@ class _SignUpScreenState extends State<SignUpScreen> {
     );
   }
 
-  Widget _buildRegistrationForm(AuthProvider authProvider) {
-    return Center(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 24.0),
-        child: Form(
-          key: authProvider.signupFormKey,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Text(
-                'Create Account',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
+  Widget _buildRegistrationForm() {
+    return Consumer<AuthProvider>(
+      builder: (context, authProvider, _) {
+        return Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 24.0),
+            child: Form(
+              key: authProvider.signupFormKey,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Text(
+                    'Create Account',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  const Text(
+                    'Enter your details to create a new account',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.white70,
+                    ),
+                  ),
+                  const SizedBox(height: 40),
+                  _buildNameField(authProvider.firstNameController, 'First Name', Icons.person_outline, authProvider.validateName),
+                  const SizedBox(height: 16),
+                  _buildNameField(authProvider.lastNameController, 'Last Name', Icons.person_outline, authProvider.validateName),
+                  const SizedBox(height: 16),
+                  _buildEmailField(authProvider),
+                  const SizedBox(height: 16),
+                  _buildPasswordField(authProvider),
+                  const SizedBox(height: 16),
+                  _buildRoleDropdown(),
+                  const SizedBox(height: 16),
+                  _buildErrorMessage(authProvider),
+                  const SizedBox(height: 16),
+                  _buildSignUpButton(authProvider),
+                  const SizedBox(height: 24),
+                  _buildLoginPrompt(),
+                ],
               ),
-              const SizedBox(height: 10),
-              const Text(
-                'Enter your details to create a new account',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.white70,
-                ),
-              ),
-              const SizedBox(height: 40),
-              _buildNameField(authProvider.firstNameController, 'First Name', Icons.person_outline, authProvider.validateName),
-              const SizedBox(height: 16),
-              _buildNameField(authProvider.lastNameController, 'Last Name', Icons.person_outline, authProvider.validateName),
-              const SizedBox(height: 16),
-              _buildEmailField(authProvider),
-              const SizedBox(height: 16),
-              _buildPasswordField(authProvider),
-              const SizedBox(height: 16),
-              _buildRoleDropdown(),
-              const SizedBox(height: 16),
-              _buildErrorMessage(authProvider),
-              const SizedBox(height: 16),
-              _buildSignUpButton(authProvider),
-              const SizedBox(height: 24),
-              _buildLoginPrompt(),
-            ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -241,7 +242,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
   Widget _buildSignUpButton(AuthProvider authProvider) {
     return ElevatedButton(
-      onPressed: authProvider.isLoading ? null : () => _handleSignUp(authProvider),
+      onPressed: authProvider.isLoading
+          ? null
+          : () => _handleSignUp(authProvider),
       style: ElevatedButton.styleFrom(
         backgroundColor: Colors.white,
         padding: const EdgeInsets.symmetric(vertical: 16),
@@ -326,26 +329,16 @@ class _SignUpScreenState extends State<SignUpScreen> {
     );
   }
 
-  void _handleSignUp(AuthProvider authProvider) async {
-    if (!authProvider.signupFormKey.currentState!.validate()) return;
+  void _handleSignUp(AuthProvider authProvider) {
+    authProvider.clearError();
+    if (authProvider.signupFormKey.currentState!.validate()) {
+      final userData = {
+        'firstName': authProvider.firstNameController.text.trim(),
+        'lastName': authProvider.lastNameController.text.trim(),
+        'role': _selectedRole,
+      };
 
-    final userData = {
-      'firstName': authProvider.firstNameController.text.trim(),
-      'lastName': authProvider.lastNameController.text.trim(),
-      'role': _selectedRole,
-    };
-
-    final success = await authProvider.signUp(
-      authProvider.emailController.text.trim(),
-      authProvider.passwordController.text,
-      userData,
-    );
-
-    if (success && context.mounted) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const HomeScreen()),
-      );
+      authProvider.signup(context, userData);
     }
   }
 }
